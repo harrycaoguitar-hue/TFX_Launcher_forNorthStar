@@ -1,0 +1,38 @@
+{
+  "appId": "community.tfx.launcher",
+  "electronVersion": "43.1.1",
+  "productName": "TFX Launcher",
+  "executableName": "TFX-Launcher",
+  "directories": {
+    "output": "dist",
+    "buildResources": "src/assets/icons"
+  },
+  "asarUnpack": [
+    "src/tools/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "src/assets/icons/icon.ico",
+    "signAndEditExecutable": false
+  },
+  "portable": {
+    "artifactName": "TFX-Launcher-1.0.0.exe",
+    "requestExecutionLevel": "user"
+  },
+  "artifactName": "TFX-Launcher-1.0.0.exe",
+  "files": [
+    "src/**/*",
+    "node_modules/**/*",
+    "package.json",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "!test/**/*"
+  ]
+}
