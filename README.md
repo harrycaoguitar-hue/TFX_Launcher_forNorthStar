@@ -1,2 +1,2 @@
-# VYRA_Launcher_forNorthStarCN
-VYRA 第三方北极星启动器
+# TFX_Launcher_forNorthStar
+TFX 第三方北极星启动器
