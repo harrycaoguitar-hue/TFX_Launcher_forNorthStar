@@ -25,7 +25,7 @@ The development release was assembled from a verified Electron 43.1.1 runtime wi
 
 ## Data and behavior
 
-The existing fold.json name is retained for upgrade compatibility. Saved preferences remain under the Windows application data folder; temporary client data and backups prefer D:/TFX-Launcher-Data when D: exists and otherwise use application data. Do not delete active recovery journals or client slots.
+The existing fold.json name is retained for upgrade compatibility. Saved preferences remain under the Windows application data folder. Northstar download caches and transaction data, Thunderstore caches, and some mod-state backups prefer D:/TFX-Launcher-Data when D: exists. DDS / VTF skin backups and cross-format recovery records remain under fold-launcher in Windows application data; prepared client-switching files also use the .tfx area inside the game folder. Use Open backup folder on each skin page to locate its actual storage. Do not delete active recovery journals or client slots.
 
 NorthstarCN 1.17.7 and Northstar 1.31.13 provide offline first-install bundles. Existing newer recognized local clients are preserved. The optional Global DiscordRPC.dll is excluded because its independent redistribution license was not declared by the inspected upstream source. Retained official files are unchanged and each is hashed in its manifest. Runtime downloads of official full updates retain their original contents. See src/tools/clients/SOURCE.md.
 
