@@ -6,7 +6,7 @@
 
 Play on both Northstar networks from the same TITANFALL 2 installation. Select Global or China and launch; TFX switches to the matching client files for you. Import a compatible DDS or VTF skin package, review the installation plan, and click **Install**. Skin replacement and recovery backups are built in.
 
-**[Download for Windows x64](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/releases/latest)** · [Report an issue](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
+**[Download for Windows x64](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest)** · [Report an issue](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
 
 ### Why try TFX?
 
@@ -45,11 +45,11 @@ Windows x64 · Requires an installed copy of TITANFALL 2 · First-time client in
 - A 64-bit Windows system. This release provides a Windows x64 build.
 - A purchased, installed copy of TITANFALL 2 and a working Steam / EA launch environment. TFX does not include the game.
 - Enough free space on the game and data drives for client installation, download caches, and skin recovery backups.
-- Internet access for server browsing, Thunderstore, and update checks. Version 1.0.0 includes first-install data for both Northstar clients; installing a client does not make online play available offline.
+- Internet access for server browsing, Thunderstore, and update checks. Version 1.0.1 includes first-install data for both Northstar clients; installing a client does not make online play available offline.
 
 #### Getting started
 
-1. Download and run `TFX-Launcher-1.0.0.exe` from [Releases](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/releases/latest).
+1. Download and run `TFX-Launcher-1.0.1.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
 2. TFX checks your saved location, Steam libraries, and EA installation information. If detection fails, use **Choose folder / Change folder** to select the game root containing `Titanfall2.exe`. Do not select `steamapps`, `common`, or a mod subfolder.
 3. On first use, Chinese system languages select Simplified or Traditional Chinese as appropriate; other system languages default to English. Change this in **Preferences → Appearance & language** and save to keep your choice.
 4. In **Play**, choose vanilla or Northstar. For Northstar, also choose **CN / Global**. If the selected client is not installed, install it before launching.
@@ -70,7 +70,7 @@ The home page shows the game folder and lets you open or change it. The end-game
 
 **Northstar** offers two client channels:
 
-| Selection | Client | First-install version bundled with 1.0.0 |
+| Selection | Client | First-install version bundled with 1.0.1 |
 |---|---|---|
 | CN | NorthstarCN | 1.17.7 |
 | Global | Northstar | 1.31.13 |
@@ -96,7 +96,7 @@ Data comes from each network's public server directory. You can refresh manually
 
 The lower-left corner of the Northstar home page shows the selected network's public-server player count. This is a sum from the public directory, not a count of every player online. Displayed times and refresh timestamps use your computer's system time; player counts change with directory refreshes.
 
-This list is for browsing. Launch the matching client and join through its in-game server browser. TFX 1.0.0 does not join games directly from its server list.
+This list is for browsing. Launch the matching client and join through its in-game server browser. TFX 1.0.1 does not join games directly from its server list.
 
 <a id="en-mods"></a>
 
@@ -228,7 +228,7 @@ Normal preferences are saved only after **Save changes** writes successfully. If
 #### Two kinds of updates
 
 - **Northstar client updates:** Update the selected channel's files in the game folder through the home page and Northstar update preferences.
-- **TFX app updates:** **Preferences → About → App updates** reads [this repository's latest stable Release](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/releases/latest). Results distinguish up to date, update available, no published release, and network failure. Choosing a download opens the official GitHub link; TFX does not silently replace the running app.
+- **TFX app updates:** **Preferences → About → App updates** reads [this repository's latest stable Release](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest). Results distinguish up to date, update available, no published release, and network failure. Choosing a download opens the official GitHub link; TFX does not silently replace the running app.
 
 Releases provide the application, matching source archive, English acceptance and attribution document, and SHA-256 checksums. Use the release EXE. GitHub's automatically generated source download is for development, not a runnable Windows application.
 
@@ -278,7 +278,7 @@ See [BUILD.md](BUILD.md) for full requirements, outputs, and license handling. K
 
 Author: **HarryCao**.
 
-For problems or suggestions, open a [GitHub Issue](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/issues) or email **harrycaoguitar@gmail.com**. Include the TFX version, selected client, reproduction steps, and error text. Review logs for personal paths before sharing them.
+For problems or suggestions, open a [GitHub Issue](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) or email **harrycaoguitar@gmail.com**. Include the TFX version, selected client, reproduction steps, and error text. Review logs for personal paths before sharing them.
 
 #### Special thanks
 
@@ -296,6 +296,6 @@ Thank you to these teams and contributors, and to everyone who tested TFX or pro
 
 TFX is a **GPL-3.0-or-later** derivative of ViperCN 1.11.3. Mod management, Thunderstore browsing and installation, DDS / VTF installation, and dual-client management include new implementations written for this project. This work does not remove attribution, license, or corresponding-source obligations for inherited code, and does not make the entire application a clean-room rewrite.
 
-See [LICENSE](LICENSE) for the project license and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance and third-party notices. Official clients, downloaded mods, the Electron runtime, fonts, and archive tools retain their own licenses. The Global client bundled with 1.0.0 omits the optional Discord Rich Presence plugin because its redistribution license was not clearly declared. Core client files and the community-server menu remain included; full updates downloaded from official releases are installed with their official contents.
+See [LICENSE](LICENSE) for the project license and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance and third-party notices. Official clients, downloaded mods, the Electron runtime, fonts, and archive tools retain their own licenses. The Global client bundled with 1.0.1 omits the optional Discord Rich Presence plugin because its redistribution license was not clearly declared. Core client files and the community-server menu remain included; full updates downloaded from official releases are installed with their official contents.
 
 TFX is a community project and is not affiliated with or endorsed by Respawn Entertainment or Electronic Arts. The TITANFALL 2 name, logo, and game assets belong to their respective rights holders.

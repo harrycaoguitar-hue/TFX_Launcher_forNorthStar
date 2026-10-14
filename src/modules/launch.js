@@ -17,6 +17,7 @@ const clients = require("./northstar-clients");
 const modState = require("./mod-enabled-state");
 const modCompatibility = require("./mod-compatibility");
 const {NorthstarReadiness} = require("./northstar-readiness");
+const ea = require("./ea-handoff");
 
 let launching = false, latestDiagnostic = null, activeReadiness = null;
 function send(channel, result) {try {const window = win(); if (!window.isDestroyed?.()) window.send(channel, result);} catch (error) {console.error(error.message || String(error));}}
@@ -226,38 +227,83 @@ async function launch(gameVersion) {
       baseline = await baselineSnapshot();
       if (hasGame(baseline)) throw Error("游戏已由其他程序启动，请等待启动完成或先退出游戏。");
       selectionGuard();
-      consoleController = gameVersion === "northstar" && !plan.quietConsole ? await prepareLegacyConsole(record) : null;
-      if (consoleController) {
-        // Helper initialization is asynchronous. Keep the duplicate-process
-        // guard adjacent to the actual spawn rather than to helper preparation.
-        baseline = await baselineSnapshot();
-        if (hasGame(baseline)) throw Error("游戏已由其他程序启动，请等待启动完成或先退出游戏。");
-      }
+      // Console capability has already been checked against the selected DLL.
+      // Its owned helper may initialize alongside EA, without touching game
+      // files or spawning the game. Wait for both before the final fresh guard;
+      // collect failures so a prepared helper always reaches the cleanup path.
+      const preparations = await Promise.allSettled([ea.prepare({snapshot: () => running.snapshot(), initial: baseline, guard: selectionGuard, onStage(stage, detail) {
+        diagnose(record, {eaPreparation: {stage, ...detail}});
+        if (stage !== "ready") send("launch-status", {state: "starting", gameVersion, phase: stage === "starting" ? "prepare-ea" : "wait-ea"});
+      }}), gameVersion === "northstar" && !plan.quietConsole ? prepareLegacyConsole(record) : Promise.resolve(null)]);
+      consoleController = preparations[1].status === "fulfilled" ? preparations[1].value : null;
+      if (preparations[0].status === "rejected") throw preparations[0].reason;
+      if (preparations[1].status === "rejected") throw preparations[1].reason;
+      const platform = preparations[0].value;
+      // The platform wait may open EA's login/update UI. Repeat all guards
+      // before spawning the selected game; no vanilla fallback is permitted.
+      baseline = await baselineSnapshot();
+      if (hasGame(baseline)) throw Error("游戏已由其他程序启动，请等待启动完成或先退出游戏。");
       selectionGuard();
       if (gameVersion === "northstar") modState.assertReady(plan.profileDirectory, network.normalize(conf.northstarRegion));
-      const previousLog = gameVersion === "northstar" ? latestGameLog(plan.profileDirectory) : null;
-      const startup = createStartupLog();
-      diagnose(record, {startupLog: startup.filename, windowsHide: false});
-      session = confirmation.begin(baseline, {gameVersion});
-      activeReadiness = gameVersion === "northstar" ? {session, record, root: plan.root, profileDirectory: plan.profileDirectory, startupLog: startup.filename, previousLog, startedAt: Date.now(), logFilename: null, logOffset: 0, runtime: new NorthstarReadiness()} : null;
-      console.info(lang("general.launching"), gameVersion === "vanilla" ? "Vanilla..." : "Northstar...");
-      try {
+      let attempt = 0;
+      const spawnSelected = () => {
+        const previousLog = gameVersion === "northstar" ? latestGameLog(plan.profileDirectory) : null;
+        const startup = createStartupLog();
+        const ownedSession = session;
+        attempt++;
+        diagnose(record, {startupLog: startup.filename, windowsHide: false, launchAttempt: attempt});
+        send("launch-status", {state: "starting", gameVersion, phase: "wait-game"});
+        activeReadiness = gameVersion === "northstar" ? {session: ownedSession, record, root: plan.root, profileDirectory: plan.profileDirectory, startupLog: startup.filename, previousLog, startedAt: Date.now(), logFilename: null, logOffset: 0, runtime: new NorthstarReadiness()} : null;
+        console.info(lang("general.launching"), gameVersion === "vanilla" ? "Vanilla..." : "Northstar...");
+        try {
         // This is the requested game window. SW_HIDE can propagate to the
         // engine Northstar loads in this same process and hide a healthy game.
         const child = spawn(path.join(plan.root, plan.executable), plan.args, {cwd: plan.root, windowsHide: false, detached: true, stdio: ["ignore", startup.fd, startup.fd]});
         child.once("spawn", () => {
-          confirmation.spawned(session, child.pid);
+          confirmation.spawned(ownedSession, child.pid);
           diagnose(record, {spawnedAt: new Date().toISOString(), launcherPid: child.pid || null});
           consoleController?.bind(child.pid);
           child.unref();
         });
-        child.once("error", error => {consoleController?.cancel(); diagnose(record, {spawnErrorCode: error.code || null}); confirmation.fail(session, error);});
+        child.once("error", error => {consoleController?.cancel(); diagnose(record, {spawnErrorCode: error.code || null}); confirmation.fail(ownedSession, error);});
         child.once("exit", (code, signal) => {
           diagnose(record, {childExit: {code, signal: signal || null, at: new Date().toISOString()}});
-          confirmation.launcherExited(session, code, signal);
+          confirmation.launcherExited(ownedSession, code, signal, child.pid);
         });
-      } catch (error) {consoleController?.cancel(); confirmation.fail(session, error);}
-      finally {fs.closeSync(startup.fd);}
+        } catch (error) {consoleController?.cancel(); confirmation.fail(ownedSession, error);}
+        finally {fs.closeSync(startup.fd);}
+      };
+      session = confirmation.begin(baseline, {gameVersion, retryHandoff: platform.cold ? async retrySession => {
+        if (confirmation.current !== retrySession) return;
+        diagnose(record, {eaHandoffRetry: "checking"});
+        send("launch-status", {state: "starting", gameVersion, phase: "retry-ea"});
+        const acceptArrivingHandoff = async () => {
+          const appeared = await baselineSnapshot();
+          if (!hasGame(appeared)) return false;
+          confirmation.observe(appeared);
+          diagnose(record, {eaHandoffRetry: "original-handoff-arrived"});
+          send("launch-status", {state: "starting", gameVersion, phase: "wait-game"});
+          return true;
+        };
+        try {await ea.prepare({snapshot: () => running.snapshot(), guard: selectionGuard, forceWait: true, timeoutMs: 15000, settleMs: 1000});}
+        catch (error) {
+          if (error.code === "GAME_ALREADY_RUNNING" && await acceptArrivingHandoff()) return;
+          throw error;
+        }
+        if (confirmation.current !== retrySession) return;
+        // Replay precisely the captured region/profile and executable, never
+        // a Steam URI that could silently turn Northstar into the EA original.
+        selectionGuard();
+        consoleController = gameVersion === "northstar" && !plan.quietConsole ? await prepareLegacyConsole(record) : null;
+        const stopped = await baselineSnapshot();
+        if (hasGame(stopped) && await acceptArrivingHandoff()) {consoleController?.cancel(); return;}
+        selectionGuard();
+        if (gameVersion === "northstar") modState.assertReady(plan.profileDirectory, network.normalize(conf.northstarRegion));
+        if (confirmation.current !== retrySession) return;
+        diagnose(record, {eaHandoffRetry: "replaying"});
+        spawnSelected();
+      } : undefined});
+      spawnSelected();
       const confirmed = await session.promise;
       if (!confirmed.ok) throw Object.assign(Error(confirmed.error), confirmed.code ? {code:confirmed.code} : {});
       diagnose(record, {state: "confirmed", confirmedAt: new Date().toISOString(), confirmation: {pid: confirmed.pid, image: confirmed.image}});

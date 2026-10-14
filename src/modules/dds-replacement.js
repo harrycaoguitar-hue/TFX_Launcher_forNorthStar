@@ -135,7 +135,7 @@ async function savedBytes(entry, index, type, hash) {
   return data;
 }
 
-async function prepareReplacement({pkg, journals, plan, dir, readRange, hash, gamePath, originals = new Map()}) {
+async function prepareReplacement({pkg, journals, plan, dir, readRange, hash, gamePath, originals = new Map(), prepareResources}) {
   if (journals.some(e => e.manifest.state === "pending")) throw Error("上次 DDS 操作尚未完成，请先恢复对应备份，再安装新皮肤");
   const installed = journals.filter(e => e.manifest.state === "installed"), incoming = new Map(), families = new Set();
   for (const item of pkg.files) {
@@ -175,6 +175,9 @@ async function prepareReplacement({pkg, journals, plan, dir, readRange, hash, ga
     }
   }
   const supersedes = new Set();
+  // Recovery must happen before reading baselines for omitted/old skin rows,
+  // which can live in a different container from the incoming DDS files.
+  if(prepareResources)await prepareResources(rows);
   for (const r of rows) {
     const key = rangeKey(r), chain = chains.get(key) || [];
     // Every managed occurrence at this exact position must be recognized.

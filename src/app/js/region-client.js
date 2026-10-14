@@ -8,12 +8,18 @@
   if (!versionLabel || !detailLabel || !playButton) return;
   const statuses = new Map();
   const requests = new Map();
+  const requestContexts = new Map();
+  const queuedRequests = new Map();
+  const statusContexts = new Map();
+  const statusTimes = new Map();
   const revisions = new Map();
   let progress = null;
   let installing = null;
   let externalUpdate = false;
   const installationLocks = new Map();
   const region = () => settings.northstarRegion === 'global' ? 'global' : 'cn';
+  const context = () => JSON.stringify([settings.gamepath || '', settings.nsargs || '']);
+  let observedContext = context();
   const copy = (zh,en) => window.I18n?.current === 'zh-CN' ? zh : window.I18n?.text(en) || en;
   const name = value => value === 'global' ? (copy("全球服","Global")) : value === 'cn' ? (copy("国服","China")) : (copy("未识别的客户端","Unknown client"));
   const validRegion = value => ['cn', 'global'].includes(value);
@@ -147,38 +153,57 @@
   async function refresh(selected = region(), force = false) {
     if (!validRegion(selected)) return null;
     if (requests.has(selected)) {
-      if (!force) return requests.get(selected);
+      if (!force && requestContexts.get(selected) === context()) return requests.get(selected);
+      if (queuedRequests.has(selected)) return queuedRequests.get(selected);
       revisions.set(selected, (revisions.get(selected) || 0) + 1);
-      return requests.get(selected).then(() => refresh(selected));
+      const queued = requests.get(selected).then(() => refresh(selected)).finally(() => { if (queuedRequests.get(selected) === queued) queuedRequests.delete(selected); });
+      queuedRequests.set(selected, queued);
+      return queued;
     }
+    const requestContext = context();
     const revision = (revisions.get(selected) || 0) + 1;
     revisions.set(selected, revision);
     const request = Promise.resolve().then(() => ipcRenderer.invoke('northstar-client-status', {region: selected}))
       .then(value => {
         if (!value || value.region !== selected) throw new Error(value?.error || (copy("客户端状态暂时无法获取，请重试。","Client status unavailable. Try again.")));
-        if (revisions.get(selected) === revision) statuses.set(selected, {...value});
+        if (revisions.get(selected) === revision && requestContext === context()) {
+          statuses.set(selected, {...value});
+          statusContexts.set(selected, requestContext);
+          statusTimes.set(selected, Date.now());
+        }
         return value;
       }).catch(error => {
-        if (revisions.get(selected) === revision) statuses.set(selected, {...statuses.get(selected), region: selected, error: error.message});
+        if (revisions.get(selected) === revision && requestContext === context()) statuses.set(selected, {...statuses.get(selected), region: selected, error: error.message});
         return null;
       }).finally(() => {
-        if (requests.get(selected) === request) requests.delete(selected);
+        if (requests.get(selected) === request) { requests.delete(selected); requestContexts.delete(selected); }
         render();
       });
     requests.set(selected, request);
+    requestContexts.set(selected, requestContext);
     render();
     return request;
   }
   function receiveVersion(versions) {
     const value = versions?.client;
-    if (value && validRegion(value.region)) {
+    const captured = versions?.clientContext;
+    const current = Boolean(value && captured && typeof captured.gamePath === 'string' && typeof captured.nsargs === 'string' && captured.region === region() && value.region === captured.region && JSON.stringify([captured.gamePath,captured.nsargs]) === context());
+    // A version check may have started for a different directory/profile.
+    // Never infer that identity from current settings or replace a direct
+    // status request already checking the current selection.
+    if (current && !requests.has(value.region)) {
       statuses.set(value.region, {...statuses.get(value.region), error: undefined, ...value});
+      statusContexts.set(value.region, context());
+      statusTimes.set(value.region, Date.now());
       revisions.set(value.region, (revisions.get(value.region) || 0) + 1);
     }
     // The legacy `ns` field describes files on disk. It must never stand in for
     // the selected global client when the installed files belong to China.
     render();
-    void refresh(region(), true);
+    // Version metadata already includes a fresh regional client check.
+    // Repeating it here raced startup directory validation and scanned the
+    // same installation again before the user could press Play.
+    if (!current) void refresh();
   }
   function receiveProgress(value) {
     if (!value || !validRegion(value.region) || !['checking', 'preparing', 'switching', 'verifying', 'done', 'failed'].includes(value.phase)) return;
@@ -222,9 +247,18 @@
     }
   });
   for (const channel of ['newpath', 'gamepath-status']) ipcRenderer.on(channel, () => {
-    statuses.clear();
-    for (const [key, value] of revisions) revisions.set(key, value + 1);
-    void refresh(region(), true);
+    const nextContext = context();
+    if (nextContext !== observedContext) {
+      observedContext = nextContext;
+      statuses.clear();
+      for (const [key, value] of revisions) revisions.set(key, value + 1);
+    }
+    // Directory acceptance emits both newpath and gamepath-status. A client
+    // check completed moments before those events is already current for the
+    // same path/arguments. This short reuse applies only to UI status; launch
+    // still performs the main process's current safety checks.
+    if (statusContexts.get(region()) === nextContext && Date.now() - (statusTimes.get(region()) || 0) < 750) return;
+    void refresh();
   });
   window.addEventListener('vyra-region-changed', () => { dismissInstallNotices(); render(); void refresh(); });
   ipcRenderer.on('set-buttons', (_event, enabled) => { if (!installing) externalUpdate = !enabled; renderAction(); });

@@ -1,7 +1,9 @@
 "use strict";
 const fs=require("fs"),fsp=fs.promises,path=require("path"),crypto=require("crypto"),{execFile}=require("child_process");
-const {parseIndex,serializeIndex,safeAssetPath,flagsFor,streamArchive,verifyArchive,hash,hashFile,MAX_INDEX_BYTES,readIndexFile}=require("./vtf-vpk");
+const {parseIndex,serializeIndex,safeAssetPath,flagsFor,createAssetLookup,streamArchive,verifyArchive,hash,hashFile,MAX_INDEX_BYTES,readIndexFile}=require("./vtf-vpk");
 const {deletionPolicy,readBackupManifest,removeBackupDirectory,assertUnlinkedAncestors,readRecord}=require("./backup-records");
+const {VtfResourceRecovery}=require("./vtf-resource-recovery");
+const {VtfOriginals}=require("./vtf-originals");
 const INDEX_NAME="englishclient_mp_common.bsp.pak000_dir.vpk",MAX_BYTES=4*1024*1024*1024,MAX_FILES=2000;
 const ASSETS=new Set([".vtf",".vmt",".mdl",".vvd",".vtx",".phy",".ani"]);
 const NOTE=/\.(txt|md|png|jpe?g|webp)$/i;
@@ -115,7 +117,7 @@ async function walk(directory,relative="",depth=0){
   }return out;
 }
 class VtfEngine{
-  constructor(options){this.baseDir=options.baseDir;this.packagesDir=options.packagesDir||path.join(this.baseDir,"packages");this.toolsDir=options.toolsDir;this.isGameRunning=options.isGameRunning|| (async()=>false);this.emit=options.progress||(()=>{});this.packages=new Map();this.busy=false;}
+  constructor(options){this.baseDir=options.baseDir;this.packagesDir=options.packagesDir||path.join(this.baseDir,"packages");this.toolsDir=options.toolsDir;this.isGameRunning=options.isGameRunning|| (async()=>false);this.emit=options.progress||(()=>{});this.packages=new Map();this.busy=false;this.originals=new VtfOriginals({baseDir:this.baseDir,offlinePack:options.offlinePack,...(options.manifestProvider?{manifestProvider:options.manifestProvider}:{})});this.resources=new VtfResourceRecovery({baseDir:this.baseDir,offlinePack:options.offlinePack,isGameRunning:()=>this.isGameRunning(),progress:data=>this.emit(data),...(options.manifestProvider?{manifestProvider:options.manifestProvider}:{})});}
   progress(phase,percent,message){this.emit({phase,percent:Math.max(0,Math.min(100,Math.round(percent))),message});}
   async initialize(){await fsp.mkdir(this.packagesDir,{recursive:true});await fsp.mkdir(path.join(this.baseDir,"backups"),{recursive:true});}
   tool(args){const executable=fs.existsSync(path.join(this.toolsDir,"7z.exe"))?"7z.exe":"7za.exe";return new Promise((resolve,reject)=>execFile(path.join(this.toolsDir,executable),args,{windowsHide:true,encoding:"utf8",maxBuffer:8*1024*1024,timeout:15*60*1000},(err,stdout,stderr)=>{if(err)return reject(Error(`VTF 压缩包读取失败：${stderr.trim()||err.message}`));resolve(stdout);}));}
@@ -162,19 +164,21 @@ class VtfEngine{
     for(const entry of parsed.entries){if(!stats.has(entry.index)){const archive=path.join(vpkDir,archiveName(entry.index));await assertUnlinkedAncestors(archive,resourcePathError);const s=await fsp.lstat(archive);if(!s.isFile())throw Error("common 归档不是普通文件");stats.set(entry.index,s.size);}
       for(const c of entry.chunks)if(c.offset+c.compressedSize>stats.get(entry.index))throw Error("common VPK 归档长度与索引不一致");
     }
-    if(pkg)for(const f of pkg.files)flagsFor(f.path,parsed.entries);return {path:root,vpkDir,indexPath,index,parsed,stats};
+    if(pkg){const lookup=createAssetLookup(parsed.entries);for(const f of pkg.files)flagsFor(f.path,parsed.entries,lookup);}return {path:root,vpkDir,indexPath,index,parsed,stats};
   }
-  async gameStatus(gamePath,pkg){try{const g=await this.readGame(gamePath,pkg);return {path:g.path,ready:true,archiveCount:g.stats.size,indexPath:g.indexPath};}catch(err){return {path:gamePath?path.resolve(gamePath):"",ready:false,error:gamePath?`common VPK 不完整或不兼容：${errorText(err)}`:errorText(err)};}}
+  async gameStatus(gamePath,pkg){try{if(!gamePath)throw Error("请先选择泰坦陨落 2 游戏目录");const root=path.resolve(gamePath),resource=await this.resources.inspect(root);delete resource.parsed;if(!resource.ready)return {path:root,...resource};const g=await this.readGame(root,pkg);return {path:g.path,...resource,archiveCount:g.stats.size,indexPath:g.indexPath};}catch(err){return {path:gamePath?path.resolve(gamePath):"",ready:false,canRepair:false,issues:[],error:gamePath?`common VPK 不完整或不兼容：${errorText(err)}`:errorText(err)};}}
+  async repairResources(gamePath,packageId,source){return this.exclusively(async()=>{const pkg=this.packages.get(packageId);if(!pkg)throw Error("请重新导入并校验 VTF 皮肤包");const result=await this.resources.repair(path.resolve(gamePath),source);if(source){const original=await this.originals.prepare(path.resolve(gamePath),source);return {...result,original:original.status};}return result;},gamePath);}
   async manifests(gamePath){await this.initialize();if(!gamePath)return [];const list=[];for(const e of await fsp.readdir(path.join(this.baseDir,"backups"),{withFileTypes:true})){if(!e.isDirectory()||!validId(e.name))continue;try{const m=(await readRecord(path.join(this.baseDir,'backups'),e.name,gamePath,'manifest.json',{allowOtherGames:true})).manifest;if(equalPath(m.gamePath,gamePath)){this.validateManifest(m,e.name,gamePath);list.push(m);}}catch(err){if(err.code!=='ENOENT')throw Error("VTF 备份记录无效或不属于当前游戏目录");}}
     return list.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
   }
   async backups(gamePath){return (await this.manifests(gamePath)).map(m=>({id:m.id,name:m.name,createdAt:m.createdAt,state:m.state,count:m.files.length,bytes:m.archiveBytes||m.bytes||0,archive:m.archiveName,...(m.skinSwitchId?{skinSwitchId:m.skinSwitchId}:{}),...deletionPolicy(m)}));}
   async deleteBackup(gamePath,backupId){return this.exclusively(async()=>{const record=await readBackupManifest(this.baseDir,backupId,gamePath);this.validateManifest(record.manifest,backupId,gamePath);const policy=deletionPolicy(record.manifest);if(!policy.canDelete)throw Error(policy.deleteReason);return removeBackupDirectory(this.baseDir,backupId,record);},gamePath);}
-  async status(gamePath,packageId){const pkg=this.packages.get(packageId),manifests=await this.manifests(gamePath);const pending=manifests.filter(m=>["preparing","pending"].includes(m.state));return {game:await this.gameStatus(gamePath,pkg),package:pkg?this.publicPackage(pkg):null,backups:await this.backups(gamePath),busy:this.busy,pending:pending.map(m=>m.id),conflicts:pkg?manifests.filter(m=>m.state==="installed"&&m.files.some(r=>pkg.files.some(f=>f.path.toLowerCase()===r.path.toLowerCase()))).map(m=>({id:m.id,name:m.name})):[]};}
+  async status(gamePath,packageId){const pkg=this.packages.get(packageId),manifests=await this.manifests(gamePath);const pending=manifests.filter(m=>["preparing","pending"].includes(m.state));let original=null;if(pkg&&gamePath)try{original=(await this.originals.prepare(path.resolve(gamePath))).status;}catch(error){original={state:"error",complete:false,reason:errorText(error)};}return {game:await this.gameStatus(gamePath,pkg),original,package:pkg?this.publicPackage(pkg):null,backups:await this.backups(gamePath),busy:this.busy,pending:pending.map(m=>m.id),conflicts:pkg?manifests.filter(m=>m.state==="installed"&&m.files.some(r=>pkg.files.some(f=>f.path.toLowerCase()===r.path.toLowerCase()))).map(m=>({id:m.id,name:m.name})):[]};}
   async exclusively(action,gamePath){if(this.busy)throw Error("另一个 VTF 操作正在执行");this.busy=true;let release;try{if(await this.isGameRunning())throw Error("请先退出游戏，再安装或恢复皮肤");if(!this.externalGameLock)release=await acquireGameLock(gamePath);return await action();}finally{try{if(release)await release();}finally{this.busy=false;}}}
   async pickArchive(game){const occupied=new Set(game.parsed.entries.map(e=>e.index));for(const file of await fsp.readdir(game.vpkDir)){const match=file.match(/^client_mp_common\.bsp\.pak000_(\d+)\.vpk$/i);if(match)occupied.add(Number(match[1]));}for(let i=0;i<1000;i++)if(!occupied.has(i))return i;throw Error("common VPK 没有可用的新归档编号");}
   async install(gamePath,packageId,options={}){return this.exclusively(async()=>{
     await this.initialize();const pkg=this.packages.get(packageId);if(!pkg)throw Error("请重新导入并校验 VTF 皮肤包");const pending=(await this.manifests(gamePath)).find(m=>["preparing","pending"].includes(m.state));if(pending)throw Error("检测到上次未完成的 VTF 操作，请先恢复该备份");
+    const resource=await this.gameStatus(gamePath,pkg);if(!resource.ready&&resource.canRepair)await this.resources.repair(path.resolve(gamePath));else if(!resource.ready)throw Error(resource.error);
     const game=await this.readGame(gamePath,pkg);await freeSpace(game.vpkDir,pkg.bytes+MAX_INDEX_BYTES);await freeSpace(this.baseDir,MAX_INDEX_BYTES*2);
     const backupId=id(),dir=path.join(this.baseDir,"backups",backupId),file=path.join(dir,"manifest.json"),archiveIndex=await this.pickArchive(game);
     const newest=(await this.manifests(game.path)).reduce((value,record)=>Math.max(value,Date.parse(record.createdAt)),0);

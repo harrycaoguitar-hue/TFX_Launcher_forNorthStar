@@ -7,11 +7,13 @@ const settings = require("./settings");
 const isRunning = require("./is_running");
 const protection = require("./dds-guard");
 const gate = require("./dds-operation-gate");
+const {OfflineSkinPack,productionDirectories}=require("./offline-skin-pack");
 
 let sender;
 const engine = new DdsEngine({
   // Backups must survive cache cleanup and portable-runtime extraction cleanup.
   baseDir:path.join(app.getPath("appData"),"fold-launcher","dds"),
+  offlinePack:new OfflineSkinPack({directories:productionDirectories()}),
   isGameRunning:()=>isRunning.game(),
   progress:data=>{if(sender&&!sender.isDestroyed())sender.send("dds-progress",data);}
 });
@@ -70,15 +72,18 @@ ipcMain.handle("dds-inspect",async(event,input)=>importResponse(event,async()=>{
   if(typeof input?.path!=="string"||!path.isAbsolute(input.path))throw Error("请选择本地 DDS 皮肤包");
   return engine.inspect(input.path);
 }));
-ipcMain.handle("dds-install",async(event,input={})=>response(event,async()=>gate.run("dds-install",async()=>{
-  const packageId=currentPackage(input),revision=selectionRevision;
-  const root=gamePath();
+async function installSelected(root,packageId,input={}) {
+  const revision=selectionRevision;
   let candidate,warning;
   try {candidate=await protection.prepareCapture(root);}catch(err){warning=errorText(err);}
   if(root!==gamePath()||revision!==selectionRevision||packageId!==currentPackage(input))throw Error("请先重新导入并校验 DDS 皮肤，之前的选择已失效");
   const result=await engine.install(root,packageId);
   if(candidate)try {await protection.commitCapture(root,candidate);}catch(err){warning=errorText(err);}
-  return {result,...await status(root),...(warning?{protectionWarning:warning}:{})};
+  return {result,...(warning?{protectionWarning:warning}:{})};
+}
+ipcMain.handle("dds-install",async(event,input={})=>response(event,async()=>gate.run("dds-install",async()=>{
+  const root=gamePath(),result=await installSelected(root,currentPackage(input),input);
+  return {...result,...await status(root)};
 })));
 ipcMain.handle("dds-restore",async(event,input={})=>response(event,async()=>gate.run("dds-restore",async()=>{
   const root=gamePath();
@@ -101,19 +106,14 @@ ipcMain.handle("dds-open-backups",async()=>{
   const error=await shell.openPath(path.join(engine.baseDir,"backups"));
   return error?{ok:false,error}:{ok:true};
 });
-ipcMain.handle("dds-originals-select",async(event,input={})=>response(event,async()=>{
+ipcMain.handle("dds-originals-select",async(event,input={})=>response(event,async()=>gate.run("dds-originals-select",async()=>{
   const packageId=currentPackage(input),revision=selectionRevision;
-  const root=gamePath(), selection=await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender),{title:"选择未修改的原版 pc_stream.starpak",properties:["openFile"],filters:[{name:"原版游戏资源",extensions:["starpak"]}]});
+  const root=gamePath(),folder=input.kind==="folder",selection=await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender),folder?{title:"选择完整原版游戏目录或资源文件夹",properties:["openDirectory"]}:{title:"选择未修改的原版 pc_stream.starpak",properties:["openFile"],filters:[{name:"原版游戏资源",extensions:["starpak"]}]});
   if(selection.canceled||!selection.filePaths.length)return {cancelled:true};
   if(revision!==selectionRevision||packageId!==currentPackage(input))throw Error("请先重新导入并校验 DDS 皮肤，之前的选择已失效");
   await engine.importOriginals(root,packageId,selection.filePaths[0]);
+  if(engine.prepareSkinRepairSource)await engine.prepareSkinRepairSource(root,engine.packages.get(packageId),selection.filePaths[0]);
   return await status(root);
-}));
-ipcMain.handle("dds-steam-repair",async(event)=>response(event,async()=>{
-  if(await isRunning.game())throw Error("请先退出游戏，再验证游戏文件");
-  const current=await engine.replacementStatus(gamePath(),selectedPackageId);
-  if(!current?.canSteamRepair)throw Error("当前目录未找到受支持的 Steam 资源清单，请选择原版资源备份");
-  await shell.openExternal("steam://validate/1237970");
-  return {opened:true};
-}));
+})));
+require("./skin-resource-download").register("dds",{engine,currentPackage,revision:()=>selectionRevision,gamePath,status,response,install:installSelected});
 module.exports=engine;

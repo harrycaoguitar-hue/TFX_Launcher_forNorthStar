@@ -2,7 +2,7 @@
 // Public GitHub metadata only. Checking never downloads or installs an asset;
 // links are revalidated in main before the explicit open IPC is accepted.
 const https=require("https");
-const REPOSITORY="harrycaoguitar-hue/TFX_Launcher_forNorthStar";
+const REPOSITORY="harrycaoguitar/TFX_Launcher_forNorthStar";
 const API_URL=`https://api.github.com/repos/${REPOSITORY}/releases/latest`;
 const CACHE_MS=5*60*1000,MAX_RESPONSE_BYTES=1024*1024,TIMEOUT_MS=10000;
 function failure(code,message){return Object.assign(Error(message),{code});}

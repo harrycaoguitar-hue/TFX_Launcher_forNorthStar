@@ -78,6 +78,15 @@
     [/^(.+)：不支持的纹理尺寸目录$/u,'$1：不支持的皮肤尺寸目录']
   ];
   const patterns = [
+    [/^(.+)：皮肤资源路径包含链接或非普通文件，已停止资源读写。$/u,"$1: skin resource path contains a link or non-regular file. Resource access was stopped."],
+    [/^EA App 未能启动，请打开并登录 EA App 后重试。（(.+)）$/u,"EA App could not start. Open EA App, sign in, and try again. ($1)"],
+    [new RegExp("^(.+)：缺少游戏资源，可选择原版资源补齐或让 Steam 恢复后继续安装$","u"),"$1: missing game resource. Restore it from original resources or through Steam, then continue installation."],
+    [new RegExp("^(.+)：游戏资源不完整，可选择完整原版资源修复后继续安装$","u"),"$1: incomplete game resource. Restore it from complete original resources, then continue installation."],
+    [new RegExp("^(.+)：游戏资源被多个目录共享，安装前会生成独立副本，避免改动其他目录$","u"),"$1: resource shared by multiple folders. An independent copy will be created before installation to protect the other folders."],
+    [new RegExp("^(.+)：游戏资源不可写，安装前将尝试恢复可写状态$","u"),"$1: resource is not writable. TFX will try to restore write access before installation."],
+    [new RegExp("^正在修复 (.+)$","u"),"Repairing $1"],
+    [new RegExp("^(.+) 已修复并校验$","u"),"$1 repaired and verified"],
+    [new RegExp("^修复 (.+) 需要约 (.+) MB 可用空间，请先释放游戏所在磁盘的空间。$","u"),"Repairing $1 requires about $2 MB of free space. Free up space on the game drive first."],
     ...(catalog.skinSwitchPatterns || []),
     ...(catalog.clientSwitchPatterns || []),
     [/^皮肤层级元数据无效：(.+)$/u,'Invalid skin resolution metadata: $1'],

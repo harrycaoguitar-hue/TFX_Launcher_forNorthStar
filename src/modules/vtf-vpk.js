@@ -2,11 +2,17 @@
 // Titanfall VPK 2.3: leave old compressed entry records untouched and describe
 // new, uncompressed assets in 1 MiB chunks. No proprietary GUI tool is run.
 const fs=require("fs"),path=require("path"),crypto=require("crypto");
+const {crc32}=require("zlib");
 const fsp=fs.promises;
 const {assertUnlinkedAncestors}=require('./backup-records');
 const CHUNK_BYTES=1024*1024,MAX_INDEX_BYTES=32*1024*1024;
 const crcTable=Array.from({length:256},(_,n)=>{for(let i=0;i<8;i++)n=(n&1)?0xedb88320^(n>>>1):n>>>1;return n>>>0;});
-function updateCRC(crc,buffer){for(const b of buffer)crc=crcTable[(crc^b)&255]^(crc>>>8);return crc>>>0;}
+function updateCRC(crc,buffer){
+  // zlib uses the finalized CRC convention; our streaming state is unfinalized.
+  // Retain the table implementation for Node 22 runtimes without crc32.
+  if(typeof crc32==="function")return (crc32(buffer,(crc^0xffffffff)>>>0)^0xffffffff)>>>0;
+  for(const b of buffer)crc=crcTable[(crc^b)&255]^(crc>>>8);return crc>>>0;
+}
 const hash=data=>crypto.createHash("sha256").update(data).digest("hex");
 async function hashFile(file){const h=crypto.createHash("sha256");for await(const b of fs.createReadStream(file))h.update(b);return h.digest("hex");}
 async function readIndexFile(file){
@@ -30,13 +36,17 @@ function safeAssetPath(value){
   if(clean.startsWith("/")||parts.some(p=>!p||p==="."||p===".."||/[. ]$/.test(p)||/[<>\"|?*]/.test(p)||/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p)))throw Error("VPK 资源路径不安全");
   return clean;
 }
-function parseIndex(data){
-  if(!Buffer.isBuffer(data)||data.length<19||data.length>MAX_INDEX_BYTES||data.readUInt32LE(0)!==0x55aa1234||data.readUInt16LE(4)!==2||data.readUInt16LE(6)!==3)throw Error("游戏 common 索引不是受支持的 Titanfall VPK 2.3");
-  const treeSize=data.readUInt32LE(8),dataSize=data.readUInt32LE(12);if(dataSize!==0||treeSize!==data.length-16)throw Error("VPK 索引含有不受支持的预载区域或长度不正确");
+function parseIndex(data){return decodeIndex(data,false);}
+// Recover complete records only; an unfinished record is never interpreted.
+function parseTruncatedIndex(data){return decodeIndex(data,true);}
+function decodeIndex(data,partial){
+  if(!Buffer.isBuffer(data)||data.length<16||data.length>MAX_INDEX_BYTES||data.readUInt32LE(0)!==0x55aa1234||data.readUInt16LE(4)!==2||data.readUInt16LE(6)!==3)throw Error("游戏 common 索引不是受支持的 Titanfall VPK 2.3");
+  const treeSize=data.readUInt32LE(8),dataSize=data.readUInt32LE(12);if(dataSize!==0||treeSize>MAX_INDEX_BYTES-16||(partial?treeSize<=data.length-16:treeSize!==data.length-16))throw Error("VPK 索引含有不受支持的预载区域或长度不正确");
   let p=16;const entries=[],seen=new Set();
-  const need=n=>{if(p+n>data.length)throw Error("VPK 索引已截断");};
-  const z=()=>{const end=data.indexOf(0,p);if(end<0||end-p>512)throw Error("VPK 索引路径不完整");const result=data.toString("utf8",p,end);p=end+1;return result;};
-  for(let extension;(extension=z());)for(let directory;(directory=z());)for(let name;(name=z());){
+  const truncated=()=>Object.assign(Error("VPK 索引已截断"),{code:"VPK_TRUNCATED"});
+  const need=n=>{if(p+n>data.length)throw truncated();};
+  const z=()=>{const end=data.indexOf(0,p);if(end<0)throw truncated();if(end-p>512)throw Error("VPK 索引路径不完整");const result=data.toString("utf8",p,end);p=end+1;return result;};
+  try{for(let extension;(extension=z());)for(let directory;(directory=z());)for(let name;(name=z());){
     const assetPath=safeAssetPath((directory===" "?"":directory+"/")+name+"."+extension),key=assetPath.toLowerCase();
     if(seen.has(key))throw Error("VPK 索引含有重名资源");seen.add(key);need(8);
     const start=p,crc=data.readUInt32LE(p),preload=data.readUInt16LE(p+4),index=data.readUInt16LE(p+6);p+=8;
@@ -48,7 +58,9 @@ function parseIndex(data){
     }
     entries.push({path:assetPath,crc,index,chunks,raw:Buffer.from(data.subarray(start,p))});if(entries.length>100000)throw Error("VPK 资源数量过多");
   }
-  if(p!==data.length)throw Error("VPK 索引目录长度不一致");return {entries,bytes:data.length,sha256:hash(data)};
+  if(p!==data.length||partial)throw Error("VPK 索引目录长度不一致");
+  }catch(error){if(!partial||error.code!=="VPK_TRUNCATED")throw error;return {entries,bytes:data.length,sha256:hash(data),truncated:true};}
+  return {entries,bytes:data.length,sha256:hash(data)};
 }
 function serializeIndex(entries){
   const parts=[],groups=new Map(),seen=new Set();const z=s=>parts.push(Buffer.from(s+"\0","utf8"));
@@ -63,16 +75,22 @@ function serializeIndex(entries){
     }z("");}z("");}z("");
   const tree=Buffer.concat(parts);if(tree.length>MAX_INDEX_BYTES-16)throw Error("安装后的 VPK 索引过大");const head=Buffer.alloc(16);head.writeUInt32LE(0x55aa1234,0);head.writeUInt16LE(2,4);head.writeUInt16LE(3,6);head.writeUInt32LE(tree.length,8);return Buffer.concat([head,tree]);
 }
-function flagsFor(assetPath,entries){
-  const existing=entries.find(e=>e.path.toLowerCase()===assetPath.toLowerCase());
-  const extension=path.posix.extname(assetPath).toLowerCase();const similar=existing||entries.find(e=>path.posix.extname(e.path).toLowerCase()===extension);
+function createAssetLookup(entries){
+  const paths=new Map(),extensions=new Map();
+  for(const entry of entries){const key=entry.path.toLowerCase(),extension=path.posix.extname(key);if(!paths.has(key))paths.set(key,entry);if(!extensions.has(extension))extensions.set(extension,entry);}
+  return {paths,extensions};
+}
+function flagsFor(assetPath,entries,lookup){
+  const key=assetPath.toLowerCase(),existing=lookup?lookup.paths.get(key):entries.find(e=>e.path.toLowerCase()===key);
+  const extension=path.posix.extname(key),similar=existing||(lookup?lookup.extensions.get(extension):entries.find(e=>path.posix.extname(e.path).toLowerCase()===extension));
   if(!similar)throw Error(`游戏 common 索引中没有 ${extension} 类型的参考资源，无法确定加载方式`);
   const first=similar.chunks[0];if(similar.chunks.some(c=>c.flags!==first.flags||c.textureFlags!==first.textureFlags))throw Error("参考资源的加载标志不一致");
   return {flags:first.flags,textureFlags:first.textureFlags,flagSource:existing?"原同名资源":"原同格式资源"};
 }
 async function streamArchive(files,output,index,originalEntries,progress=()=>{}){
   const handle=await fsp.open(output,"wx"),entries=[];let position=0;const total=files.reduce((n,f)=>n+f.bytes,0);const archiveHash=crypto.createHash("sha256");
-  try{for(const file of files){const flags=flagsFor(file.path,originalEntries),chunks=[];let crc=0xffffffff;const fileHash=crypto.createHash("sha256");let received=0;
+  const lookup=createAssetLookup(originalEntries);
+  try{for(const file of files){const flags=flagsFor(file.path,originalEntries,lookup),chunks=[];let crc=0xffffffff;const fileHash=crypto.createHash("sha256");let received=0;
       for await(const b of fs.createReadStream(file.source,{highWaterMark:CHUNK_BYTES})){crc=updateCRC(crc,b);fileHash.update(b);archiveHash.update(b);
         const offset=position;let written=0;while(written<b.length){const result=await handle.write(b,written,b.length-written,position);if(!result.bytesWritten)throw Error("VPK 归档写入失败");written+=result.bytesWritten;position+=result.bytesWritten;}
         chunks.push({flags:flags.flags,textureFlags:flags.textureFlags,offset,compressedSize:b.length,size:b.length});received+=b.length;progress(position,total,file.path);
@@ -84,10 +102,11 @@ async function streamArchive(files,output,index,originalEntries,progress=()=>{})
 }
 async function verifyArchive(entries,archivePath,expectedFiles,progress=()=>{}){
   const fd=await fsp.open(archivePath,"r");let finished=0;const total=expectedFiles.reduce((n,f)=>n+f.bytes,0);
-  try{for(const f of expectedFiles){const e=entries.find(x=>x.path.toLowerCase()===f.path.toLowerCase());if(!e)throw Error("写入后的 VPK 缺少皮肤资源");let crc=0xffffffff;const h=crypto.createHash("sha256");let bytes=0;
+  const lookup=createAssetLookup(entries);
+  try{for(const f of expectedFiles){const e=lookup.paths.get(f.path.toLowerCase());if(!e)throw Error("写入后的 VPK 缺少皮肤资源");let crc=0xffffffff;const h=crypto.createHash("sha256");let bytes=0;
       for(const c of e.chunks){if(c.compressedSize!==c.size||c.size>CHUNK_BYTES)throw Error("写入后的 VPK 资源块不正确");const b=Buffer.alloc(c.size);const read=await fd.read(b,0,b.length,c.offset);if(read.bytesRead!==b.length)throw Error("写入后的 VPK 资源不完整");h.update(b);crc=updateCRC(crc,b);bytes+=b.length;finished+=b.length;progress(finished,total,f.path);}
       if(bytes!==f.bytes||h.digest("hex")!==f.sha256||((crc^0xffffffff)>>>0)!==e.crc)throw Error("写入后的皮肤数据或校验码不一致");
     }
   }finally{await fd.close();}
 }
-module.exports={CHUNK_BYTES,MAX_INDEX_BYTES,parseIndex,serializeIndex,safeAssetPath,flagsFor,streamArchive,verifyArchive,hash,hashFile,updateCRC,readIndexFile};
+module.exports={CHUNK_BYTES,MAX_INDEX_BYTES,parseIndex,parseTruncatedIndex,serializeIndex,safeAssetPath,flagsFor,createAssetLookup,streamArchive,verifyArchive,hash,hashFile,updateCRC,readIndexFile};

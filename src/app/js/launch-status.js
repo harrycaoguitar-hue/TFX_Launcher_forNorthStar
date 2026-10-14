@@ -5,6 +5,7 @@
   let clientPreparation = '';
   const regionLocks = new Map();
   const text = (zh,en) => I18n.current === 'zh-CN' ? zh : I18n.text(en);
+  const phaseKeys = {'prepare-ea':'launch.eaStarting','wait-ea':'launch.eaWaiting','retry-ea':'launch.eaRetry'};
   function render() {
     const pending = latest?.state === 'starting';
     launchPending = pending;
@@ -27,7 +28,7 @@
     for (const status of document.querySelectorAll('.fold-launch-status')) {
       status.hidden = !latest || latest.state === 'confirmed';
       status.classList.toggle('failed', latest?.state === 'failed');
-      status.textContent = pending ? (clientPreparation ? I18n.text(clientPreparation) : text('正在等待游戏进程…','Waiting for the game process…')) : latest?.state === 'failed' ? I18n.text(latest.error || text('启动失败，请重试。','Launch failed. Try again.')) : '';
+      status.textContent = pending ? (phaseKeys[latest?.phase] ? I18n.t(phaseKeys[latest.phase]) : clientPreparation ? I18n.text(clientPreparation) : text('正在等待游戏进程…','Waiting for the game process…')) : latest?.state === 'failed' ? I18n.text(latest.error || text('启动失败，请重试。','Launch failed. Try again.')) : '';
     }
     window.VyraClient?.renderAction();
   }

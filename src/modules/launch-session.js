@@ -39,8 +39,8 @@ function hasGame(snapshot) {return Boolean(snapshot?.ok && snapshot.processes.so
 // Confirmation is required for every launch, independently of the optional
 // launcher auto-exit preference. A launcher process may hand off to the game.
 class LaunchConfirmation {
-  constructor({speedUp, refresh, now = Date.now, schedule = setTimeout, clear = clearTimeout, timeoutMs = 120000, stableMs = 5000, exitGraceMs = 2500, handoffGraceMs = 15000, bootstrapHandoffGraceMs = 60000}) {
-    Object.assign(this, {speedUp, refresh, now, schedule, clear, timeoutMs, stableMs, exitGraceMs, handoffGraceMs, bootstrapHandoffGraceMs});
+  constructor({speedUp, refresh, now = Date.now, schedule = setTimeout, clear = clearTimeout, timeoutMs = 120000, stableMs = 5000, readyStableMs = 1000, exitGraceMs = 2500, handoffGraceMs = 15000, bootstrapHandoffGraceMs = 60000}) {
+    Object.assign(this, {speedUp, refresh, now, schedule, clear, timeoutMs, stableMs, readyStableMs, exitGraceMs, handoffGraceMs, bootstrapHandoffGraceMs});
     this.current = null;
   }
   begin(baseline, options = {}) {
@@ -48,7 +48,7 @@ class LaunchConfirmation {
     if (!baseline?.ok) throw Error("无法读取游戏进程，请稍后重试启动");
     if (hasGame(baseline)) throw Error("游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏");
     const targetImages = options.gameVersion === "northstar" ? LAUNCH_IMAGES : GAME_IMAGES;
-    const session = {spawned: false, ready: false, entered: false, requireReady: options.gameVersion === "northstar", childPid: null, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, childExit: null, everSeen: false, everCandidate: false, everHandoffCandidate: false, bootstrapHandoff: false, missingAt: null, observationRevision: 0, lastSnapshotOk: true, targetImages};
+    const session = {spawned: false, ready: false, entered: false, requireReady: options.gameVersion === "northstar", childPid: null, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, childExit: null, everSeen: false, everCandidate: false, everHandoffCandidate: false, bootstrapHandoff: false, missingAt: null, observationRevision: 0, lastSnapshotOk: true, lastSnapshot: baseline, retryHandoff: options.retryHandoff, retryPending: false, retryAttempted: false, targetImages};
     session.promise = new Promise(resolve => {session.resolve = resolve;});
     this.current = session;
     session.timer = this.schedule(() => this.fail(session, session.requireReady && session.everSeen && !session.ready ? Object.assign(new Error("游戏进程已运行，但未能确认北极星私人服务器菜单已加载。请退出游戏并检查启动诊断后重试。"), {code:"NORTHSTAR_NOT_READY"}) : "等待游戏启动超时。请检查 EA App / Steam 是否已登录、是否有弹窗，确认游戏未启动后再重试；详情见启动诊断。"), this.timeoutMs);
@@ -56,16 +56,21 @@ class LaunchConfirmation {
     this.speedUp?.(this.now() + this.timeoutMs);
     return session;
   }
-  spawned(session, pid) {if (session && this.current === session) {session.spawned = true; session.childPid = String(pid || "");}}
-  entered(session) {if (session && this.current === session) session.entered = true;}
+  spawned(session, pid) {if (session && this.current === session) {
+    if (session.retryAttempted && session.childPid) session.baselinePids.add(session.childPid);
+    session.spawned = true; session.childPid = String(pid || ""); session.bootstrapHandoff = false;
+  }}
+  entered(session) {if (session && this.current === session) {session.entered = true; session.retryPending = false;}}
   ready(session) {
     if (session && this.current === session) {
       session.ready = true;
+      session.retryPending = false;
       if (session.childExit) this.watchExit(session, Math.max(100, this.exitGraceMs - (this.now() - session.childExit.at)));
     }
   }
-  launcherExited(session, code, signal) {
+  launcherExited(session, code, signal, pid) {
     if (!session || this.current !== session) return;
+    if (pid !== undefined && String(pid) !== session.childPid) return;
     session.childExit = {code, signal: signal || null, at: this.now()};
     // Titanfall's vanilla bootstrap uses 100010 for the Steam/EA handoff.
     // Its own PID can appear as Titanfall2.exe before exiting; that is not
@@ -76,9 +81,15 @@ class LaunchConfirmation {
       session.everCandidate = session.everHandoffCandidate;
       if (!session.everCandidate) session.missingAt = null;
     }
+    // Only a cold platform initialization may replay a dropped handoff. Never
+    // replay a request after a real game/core menu was observed or after an
+    // unrecognized crash. The original overall deadline is retained.
+    session.retryPending = Boolean(session.retryHandoff && !session.retryAttempted && !signal &&
+      !session.ready && !session.entered && !session.everCandidate && !session.everHandoffCandidate &&
+      (session.bootstrapHandoff || (session.requireReady && (code === 0 || code === 100010))));
     // Zero may hand off to Steam/EA. If a game was already observed, a short
     // disappearance grace covers quick close without waiting the full timeout.
-    this.watchExit(session, session.bootstrapHandoff && !session.everCandidate ? this.bootstrapHandoffGraceMs : session.everCandidate || session.ready || session.entered || code || signal ? this.exitGraceMs : this.handoffGraceMs);
+    this.watchExit(session, session.retryPending ? this.handoffGraceMs : session.bootstrapHandoff && !session.everCandidate ? this.bootstrapHandoffGraceMs : session.everCandidate || session.ready || session.entered || code || signal ? this.exitGraceMs : this.handoffGraceMs);
   }
   watchExit(session, delay) {
     this.clear(session.exitTimer);
@@ -97,6 +108,19 @@ class LaunchConfirmation {
       // within the original bounded timeout, retaining explicit retry on failure.
       if (!session.lastSnapshotOk) {this.watchExit(session, this.exitGraceMs); return;}
       if (session.seenPid) return;
+      if (session.retryPending && !session.retryAttempted) {
+        // A still-running bootstrap or a new external game is not permission
+        // to duplicate it, even if it has not reached confirmation yet.
+        if (hasGame(session.lastSnapshot)) {this.watchExit(session, this.exitGraceMs); return;}
+        session.retryAttempted = true; session.retryPending = false;
+        // Keep observing during the asynchronous replay readiness guard. The
+        // original Steam/EA request may still deliver the real game in this
+        // gap; that arrival must win over replay and remain confirmable.
+        session.childExit = null; session.seenPid = null;
+        session.everSeen = false; session.everCandidate = false; session.missingAt = null;
+        try {await session.retryHandoff(session);} catch (error) {this.fail(session, error);}
+        return;
+      }
       if (!session.bootstrapHandoff && (session.childExit?.code || session.childExit?.signal)) {this.fail(session, this.exitError(session)); return;}
       const since = session.everCandidate ? session.missingAt : session.childExit?.at;
       const grace = session.everCandidate || session.ready || session.entered ? this.exitGraceMs : session.bootstrapHandoff ? this.bootstrapHandoffGraceMs : this.handoffGraceMs;
@@ -124,6 +148,7 @@ class LaunchConfirmation {
     if (!session?.spawned) return;
     session.observationRevision++;
     session.lastSnapshotOk = Boolean(snapshot?.ok);
+    session.lastSnapshot = snapshot;
     if (!snapshot?.ok) {session.missingAt = null; return;}
     // Northstar can stay in NorthstarLauncher.exe while loading Titanfall 2;
     // accept both that owned launcher PID and the handoff game PID.
@@ -134,10 +159,14 @@ class LaunchConfirmation {
     const ownedProcesses = candidates.filter(process =>
       (image(process) !== "northstarlauncher.exe" || String(process.pid) === session.childPid));
     if (ownedProcesses.length) {session.everSeen = true; session.missingAt = null;}
-    if (games.length) session.everCandidate = true;
+    if (games.length) {session.everCandidate = true; session.retryPending = false;}
     if (games.some(process => String(process.pid) !== session.childPid)) session.everHandoffCandidate = true;
     const confirmed = games.find(process => String(process.pid) === session.seenPid);
-    if (confirmed && (!session.requireReady || session.ready) && this.now() - session.seenAt >= this.stableMs) {
+    // A verified Northstar core/menu plus two stable process observations is
+    // stronger evidence than a vanilla bootstrap PID. Keep the longer vanilla
+    // handoff window, while releasing a ready Northstar launch promptly.
+    const stableMs = session.requireReady && session.ready ? this.readyStableMs : this.stableMs;
+    if (confirmed && (!session.requireReady || session.ready) && this.now() - session.seenAt >= stableMs) {
       this.settle(session, {ok: true, pid: Number(confirmed.pid), image: image(confirmed)});
       return;
     }

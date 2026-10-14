@@ -23,7 +23,7 @@ window.VyraLocales = {
     'settings.restore.failure':['未能保存，原设置已保留。请重试。','Could not save. Your previous settings are unchanged. Try again.'],
     'settings.restartOnly':['重新启动 TFX。','Restart TFX.'],
     'settings.previewSaveHint':['取消只撤销未保存的预览；恢复默认会立即保存。','Cancel discards unsaved previews. Restoring defaults saves immediately.'],
-    'app.preview':['1.0.0','1.0.0'],
+    'app.preview':['1.0.1','1.0.1'],
     'appUpdate.title':['应用更新','App updates'],
     'appUpdate.ready':['从 GitHub Releases 检查 TFX 的正式版本。','Check GitHub Releases for a stable TFX release.'],
     'appUpdate.check':['检查更新','Check for updates'],
@@ -80,14 +80,14 @@ window.VyraLocales = {
     'ddsOriginal.readyHint':['本包缺少 {count} 个材质位置；安装时会先用原版资源补齐同一武器，再写入新皮肤，清除旧字体与配件残留。','This package omits {count} material slots. Installation first fills this weapon with original resources, then applies the new skin to clear leftover lettering and attachments.'],
     'ddsOriginal.needsSourceHint':['旧安装工具可能把上一套皮肤留在本包未包含的材质里。先提供未改动的原版资源，补齐同一武器后才能干净换肤。','Older installers can leave the previous skin in materials omitted by this package. Supply unmodified original resources to complete this weapon before replacing its skin.'],
     'ddsOriginal.select':['选择原版资源备份','Choose original resource backup'],
-    'ddsOriginal.steam':['通过 Steam 修复','Repair through Steam'],
+    'ddsOriginal.steam':["单独下载原版资源","Download original resources separately"],
     'ddsOriginal.steamUnavailable':['未找到受支持的 Steam 资源清单，请选择原版资源备份','No supported Steam resource manifest was found. Choose an original resource backup.'],
     'ddsOriginal.check':['修复完成，重新检查','Repair finished · Check again'],
-    'ddsOriginal.confirmText':['Steam 验证会还原已修改的原版游戏资源，已装 DDS 皮肤需要重新安装。完成验证后，回到这里重新检查并安装皮肤。','Steam verification restores modified original game resources. Installed DDS skins will need reinstalling. After verification, return here to check again and install your skin.'],
-    'ddsOriginal.confirm':['打开 Steam 验证','Open Steam verification'],
+    'ddsOriginal.confirmText':["仅下载所需的原版资源到独立缓存，不执行 Steam 整体验证，不重置已有皮肤。下载完成后校验资源，再继续安装当前皮肤。","Only required original resources are downloaded to an isolated cache. Steam does not verify the whole installation or reset existing skins. After verification, installation of the selected skin continues."],
+    'ddsOriginal.confirm':["开始单独下载","Start separate download"],
     'ddsOriginal.cancel':['取消','Cancel'],
     'ddsOriginal.installBlocked':['缺少可验证的原版补齐资源，暂不能安装','Verified original repair resources are needed before installation'],
-    'ddsOriginal.installBlockedHint':['选择原版资源备份，或通过 Steam 修复后重新检查。','Choose an original backup, or repair through Steam and check again.'],
+    'ddsOriginal.installBlockedHint':["选择原版资源来源，或单独下载所需资源后继续安装。","Choose an original resource source, or download the required resources separately to continue installation."],
     'ddsOriginal.operationError':['原版资源检查未完成','Original resource check did not complete'],
     'ddsGuard.coverageTitle':['皮肤分辨率覆盖','Skin resolution coverage'],
     'ddsGuard.coverageComplete':['受支持的分辨率已覆盖','Supported resolutions covered'],
@@ -416,3 +416,617 @@ window.VyraLocales.pairs.push(
   ['这个版本没有可用的官方下载链接','This release does not have an available official download link.'],
   ['无法打开官方更新页面','Could not open the official update page.']
 );
+
+Object.assign(window.VyraLocales.messages,{
+  "ddsResource.repairable": [
+    "可自动修复",
+    "Automatic repair available"
+  ],
+  "ddsResource.needsSource": [
+    "需要补齐游戏资源",
+    "Game resources need restoring"
+  ],
+  "ddsResource.repairHint": [
+    "安装前会修复资源文件，再备份并安装皮肤。共享文件将建立独立副本。",
+    "TFX will repair the resource files, then back up and install the skin. Shared files will be copied independently."
+  ],
+  "ddsResource.sourceHint": [
+    "请选择完整的原版资源备份，TFX 校验后会补齐缺失或不完整的游戏文件；也可以通过 Steam 验证文件，完成后重新检查。",
+    "Choose a complete original resource backup. TFX will verify it and restore missing or incomplete game files. You can also verify files through Steam, then check again."
+  ],
+  "ddsResource.installHint": [
+    "修复可能需要额外磁盘空间；完成后自动继续安装。",
+    "Repair may require additional disk space. Installation will continue automatically."
+  ],
+  "ddsResource.install": [
+    "修复并安装皮肤",
+    "Repair and install skin"
+  ],
+  "ddsResource.preparing": [
+    "正在修复游戏资源…",
+    "Repairing game resources…"
+  ],
+  "launch.eaStarting": [
+    "正在打开 EA App…",
+    "Opening EA App…"
+  ],
+  "launch.eaWaiting": [
+    "正在等待 EA App 就绪…",
+    "Waiting for EA App to be ready…"
+  ],
+  "launch.eaRetry": [
+    "EA App 已就绪，正在继续启动游戏…",
+    "EA App is ready. Continuing game launch…"
+  ]
+});
+window.VyraLocales.pairs.push(...[
+  [
+    "可自动修复",
+    "Automatic repair available"
+  ],
+  [
+    "需要补齐游戏资源",
+    "Game resources need restoring"
+  ],
+  [
+    "安装前会修复资源文件，再备份并安装皮肤。共享文件将建立独立副本。",
+    "TFX will repair the resource files, then back up and install the skin. Shared files will be copied independently."
+  ],
+  [
+    "请选择完整的原版资源备份，TFX 校验后会补齐缺失或不完整的游戏文件；也可以通过 Steam 验证文件，完成后重新检查。",
+    "Choose a complete original resource backup. TFX will verify it and restore missing or incomplete game files. You can also verify files through Steam, then check again."
+  ],
+  [
+    "修复可能需要额外磁盘空间；完成后自动继续安装。",
+    "Repair may require additional disk space. Installation will continue automatically."
+  ],
+  [
+    "修复并安装皮肤",
+    "Repair and install skin"
+  ],
+  [
+    "正在修复游戏资源…",
+    "Repairing game resources…"
+  ],
+  [
+    "正在打开 EA App…",
+    "Opening EA App…"
+  ],
+  [
+    "正在等待 EA App 就绪…",
+    "Waiting for EA App to be ready…"
+  ],
+  [
+    "EA App 已就绪，正在继续启动游戏…",
+    "EA App is ready. Continuing game launch…"
+  ],
+  [
+    "DDS 资源范围无效",
+    "Invalid DDS resource range"
+  ],
+  [
+    "请先退出游戏，再修复皮肤资源。",
+    "Close the game before repairing skin resources."
+  ],
+  [
+    "游戏已启动，资源修复已取消。",
+    "The game started. Resource repair was cancelled."
+  ],
+  [
+    "原版资源的大小与当前 Steam 版本不匹配，未修改游戏。",
+    "The original resource size does not match the current Steam version. The game was not changed."
+  ],
+  [
+    "Steam 资源清单未覆盖整个游戏文件，无法安全补齐。",
+    "The Steam resource manifest does not cover the entire game file. Restoration cannot proceed safely."
+  ],
+  [
+    "原版资源未通过 Steam 完整校验，未修改游戏。",
+    "The original resource failed full Steam verification. The game was not changed."
+  ],
+  [
+    "原版资源不完整，未修改游戏。",
+    "The original resource is incomplete. The game was not changed."
+  ],
+  [
+    "没有找到完整且通过校验的原版资源。可选择原版资源备份，或让 Steam 恢复缺失文件后继续安装。",
+    "No complete verified original resource was found. Choose an original resource backup, or let Steam restore missing files before continuing installation."
+  ],
+  [
+    "未找到当前游戏的 Steam 资源清单，无法验证补齐文件。请选择 Steam 原版资源或先验证游戏文件。",
+    "No Steam resource manifest was found for this game. Replacement files cannot be verified. Choose Steam original resources or verify the game files first."
+  ],
+  [
+    "游戏资源在修复期间发生变化，请重试。",
+    "Game resources changed during repair. Try again."
+  ],
+  [
+    "复制期间原版资源发生变化，修复已取消。",
+    "Original resources changed while copying. Repair was cancelled."
+  ],
+  [
+    "修复副本校验失败，未修改游戏。",
+    "The repair copy failed verification. The game was not changed."
+  ],
+  [
+    "修复文件未通过最终检查。",
+    "The repaired file failed the final check."
+  ],
+  [
+    "原版资源在校验前发生变化，请重试。",
+    "The original resource changed before verification. Try again."
+  ],
+  [
+    "原版资源不完整或已变化，未修改游戏。",
+    "The original resource is incomplete or has changed. The game was not changed."
+  ],
+  [
+    "原版资源已变化，请重试。",
+    "The original resource has changed. Try again."
+  ],
+  [
+    "资源在复制前发生变化，请重试。",
+    "The resource changed before copying. Try again."
+  ],
+  [
+    "资源修复写入失败。",
+    "Could not write the repaired resource."
+  ],
+  [
+    "所选备份不含所需的原版资源。",
+    "The selected backup does not contain the required original resources."
+  ]
+]);
+
+window.VyraLocales.pairs.push(...[
+  [
+    "无法读取 EA App 进程，请稍后重试启动。",
+    "Could not read EA App processes. Try launching again shortly."
+  ],
+  [
+    "未找到 EA App 或 Origin，请先安装并登录 EA App，再启动游戏。",
+    "EA App or Origin was not found. Install and sign in to EA App before launching the game."
+  ],
+  [
+    "EA App 未能启动，请打开并登录 EA App 后重试。",
+    "EA App could not start. Open EA App, sign in, and try again."
+  ],
+  [
+    "EA App 尚未准备好，请检查它的登录或更新提示，处理后再启动游戏。",
+    "EA App is not ready. Check its sign-in or update prompts, resolve them, and then launch the game again."
+  ]
+]);
+
+window.VyraLocales.pairs.push(["游戏资源的写入权限无法自动恢复，请关闭占用该文件的程序或检查目录权限。","Write access to the game resource could not be restored automatically. Close programs using the file or check folder permissions."]);
+
+Object.assign(window.VyraLocales.messages,{
+  "skinRecovery.title": [
+    "游戏资源恢复",
+    "Restore game resources"
+  ],
+  "skinRecovery.source": [
+    "从原版目录恢复并安装",
+    "Restore from original folder and install"
+  ],
+  "skinRecovery.steam": [
+    "下载缺失的原版资源",
+    "Download missing original resources"
+  ],
+  "skinRecovery.continue": [
+    "修复完成，继续安装",
+    "Repair finished · Continue installation"
+  ],
+  "skinRecovery.cancel": [
+    "取消",
+    "Cancel"
+  ],
+  "skinRecovery.openSteam": [
+    "打开 Steam 恢复",
+    "Open Steam recovery"
+  ],
+  "skinRecovery.autoHint": [
+    "已找到可用的恢复来源。选择“修复并安装皮肤”，会先补齐资源，再继续安装。",
+    "A recovery source is available. Choose “Repair and install skin” to restore resources and continue installation."
+  ],
+  "skinRecovery.sourceHint": [
+    "没有旧备份也可以恢复：选择另一份完整原版游戏目录，或让 Steam 下载缺失资源。恢复完成后，当前导入的皮肤可以继续安装。",
+    "You can recover without an earlier backup: choose another complete original game folder, or let Steam download missing resources. You can then continue installing the currently imported skin."
+  ],
+  "skinRecovery.confirm": [
+    "Steam 会从官方服务器验证并恢复原版游戏文件，可能需要下载资源，也可能还原已有皮肤。请等待 Steam 完成，再点“修复完成，继续安装”。当前导入包会保留。",
+    "Steam will verify and restore original game files from its official servers. This may download resources and reset existing skins. Wait for Steam to finish, then choose “Repair finished · Continue installation”. Your imported package will be kept."
+  ],
+  "skinRecovery.steamOpened": [
+    "Steam 恢复已打开。完成后回到这里继续安装，无需重新导入皮肤。",
+    "Steam recovery is open. Return here when it finishes to continue installation without importing the skin again."
+  ],
+  "skinRecovery.selectionChanged": [
+    "游戏目录或皮肤选择已改变，请重新确认后再安装。",
+    "The game folder or selected skin has changed. Check your selection before installing."
+  ],
+  "skinRecovery.notReady": [
+    "资源尚未恢复完整，请等待修复完成，或选择完整原版目录后重试。",
+    "Resources have not been fully restored. Wait for repair to finish, or choose a complete original folder and try again."
+  ]
+});
+window.VyraLocales.pairs.push(...[["游戏资源恢复","Restore game resources"],["从原版目录恢复并安装","Restore from original folder and install"],["下载缺失的原版资源","Download missing original resources"],["修复完成，继续安装","Repair finished · Continue installation"],["取消","Cancel"],["打开 Steam 恢复","Open Steam recovery"],["已找到可用的恢复来源。选择“修复并安装皮肤”，会先补齐资源，再继续安装。","A recovery source is available. Choose “Repair and install skin” to restore resources and continue installation."],["没有旧备份也可以恢复：选择另一份完整原版游戏目录，或让 Steam 下载缺失资源。恢复完成后，当前导入的皮肤可以继续安装。","You can recover without an earlier backup: choose another complete original game folder, or let Steam download missing resources. You can then continue installing the currently imported skin."],["Steam 会从官方服务器验证并恢复原版游戏文件，可能需要下载资源，也可能还原已有皮肤。请等待 Steam 完成，再点“修复完成，继续安装”。当前导入包会保留。","Steam will verify and restore original game files from its official servers. This may download resources and reset existing skins. Wait for Steam to finish, then choose “Repair finished · Continue installation”. Your imported package will be kept."],["Steam 恢复已打开。完成后回到这里继续安装，无需重新导入皮肤。","Steam recovery is open. Return here when it finishes to continue installation without importing the skin again."],["游戏目录或皮肤选择已改变，请重新确认后再安装。","The game folder or selected skin has changed. Check your selection before installing."],["资源尚未恢复完整，请等待修复完成，或选择完整原版目录后重试。","Resources have not been fully restored. Wait for repair to finish, or choose a complete original folder and try again."],["选择完整原版游戏目录或资源文件夹","Choose a complete original game or resource folder"]]);
+
+Object.assign(window.VyraLocales.messages,{
+  "skinRecovery.title": [
+    "原皮资源与文件修复",
+    "Original skin resources and file repair"
+  ],
+  "skinRecovery.source": [
+    "选择原版资源并安装",
+    "Choose original resources and install"
+  ],
+  "skinRecovery.steam": [
+    "单独下载原版资源",
+    "Download original resources separately"
+  ],
+  "skinRecovery.continue": [
+    "重新检查并安装",
+    "Check again and install"
+  ],
+  "skinRecovery.cancel": [
+    "取消",
+    "Cancel"
+  ],
+  "skinRecovery.openSteam": [
+    "开始单独下载",
+    "Start separate download"
+  ],
+  "skinRecovery.autoHint": [
+    "已找到本地恢复来源。修复时保留现有内容，只补齐必要资源，再安装当前皮肤。",
+    "A local recovery source is available. Repair preserves existing content, fills only the required resources, and then installs the selected skin."
+  ],
+  "skinRecovery.sourceHint": [
+    "优先使用本地原皮缓存或原版资源。没有可用来源时，可选单独下载；文件存入独立缓存，不执行 Steam 整体验证。",
+    "Local original-skin caches and original resources are used first. If no source is available, a separate download is optional. Files go into an isolated cache; Steam does not verify the whole installation."
+  ],
+  "skinRecovery.confirm": [
+    "将下载 {count} 个原版资源文件，共约 {size}，另需约 32 MB 的可选 DepotDownloader 工具。下载到独立缓存，不重置已有皮肤。此第三方工具通过 Steam 手机应用扫码确认下载权限，不需要在 TFX 输入密码。完成后校验并安装当前皮肤。",
+    "Download {count} original resource files, about {size}, plus an optional DepotDownloader tool of about 32 MB. Downloads use an isolated cache and do not reset existing skins. This third-party tool uses the Steam mobile app to confirm download access by QR code; TFX does not ask for your password. After verification, the selected skin will be installed."
+  ],
+  "skinRecovery.selectionChanged": [
+    "游戏目录或皮肤选择已改变，请重新确认后再安装。",
+    "The game folder or selected skin has changed. Check your selection before installing."
+  ],
+  "skinRecovery.notReady": [
+    "资源尚未恢复完整，请选择可用的原版资源后重试。",
+    "Resources have not been fully restored. Choose available original resources and try again."
+  ],
+  "skinRecovery.qr": [
+    "使用 Steam 手机应用扫码确认下载权限",
+    "Use the Steam mobile app to scan and confirm download access"
+  ],
+  "skinRecovery.stop": [
+    "取消下载",
+    "Cancel download"
+  ],
+  "skinRecovery.cancelled": [
+    "下载已取消，当前皮肤选择已保留。",
+    "Download cancelled. The selected skin has been kept."
+  ],
+  "skinRecovery.preparing": [
+    "正在准备独立资源下载…",
+    "Preparing the separate resource download…"
+  ]
+});
+window.VyraLocales.pairs.push(...[["原皮资源与文件修复","Original skin resources and file repair"],["选择原版资源并安装","Choose original resources and install"],["单独下载原版资源","Download original resources separately"],["重新检查并安装","Check again and install"],["取消","Cancel"],["开始单独下载","Start separate download"],["已找到本地恢复来源。修复时保留现有内容，只补齐必要资源，再安装当前皮肤。","A local recovery source is available. Repair preserves existing content, fills only the required resources, and then installs the selected skin."],["优先使用本地原皮缓存或原版资源。没有可用来源时，可选单独下载；文件存入独立缓存，不执行 Steam 整体验证。","Local original-skin caches and original resources are used first. If no source is available, a separate download is optional. Files go into an isolated cache; Steam does not verify the whole installation."],["将下载 {count} 个原版资源文件，共约 {size}，另需约 32 MB 的可选 DepotDownloader 工具。下载到独立缓存，不重置已有皮肤。此第三方工具通过 Steam 手机应用扫码确认下载权限，不需要在 TFX 输入密码。完成后校验并安装当前皮肤。","Download {count} original resource files, about {size}, plus an optional DepotDownloader tool of about 32 MB. Downloads use an isolated cache and do not reset existing skins. This third-party tool uses the Steam mobile app to confirm download access by QR code; TFX does not ask for your password. After verification, the selected skin will be installed."],["游戏目录或皮肤选择已改变，请重新确认后再安装。","The game folder or selected skin has changed. Check your selection before installing."],["资源尚未恢复完整，请选择可用的原版资源后重试。","Resources have not been fully restored. Choose available original resources and try again."],["使用 Steam 手机应用扫码确认下载权限","Use the Steam mobile app to scan and confirm download access"],["取消下载","Cancel download"],["下载已取消，当前皮肤选择已保留。","Download cancelled. The selected skin has been kept."],["正在准备独立资源下载…","Preparing the separate resource download…"],["缺少游戏资源，请选择原版资源来源补齐缺失文件","Missing game resource. Choose an original resource source to restore the missing file."],["游戏资源不完整，将保留现有内容并补齐缺失部分","The game resource is incomplete. Existing content will be preserved and missing parts restored."],["未找到当前游戏的官方资源清单，无法验证补齐文件。请先获取对应版本的资源清单。","The official resource manifest for this game was not found. Obtain the manifest for the matching version before verifying replacement files."],["没有找到完整且通过校验的原版资源。请选择原版资源来源，或单独下载所需文件后继续安装。","No complete and verified original resources were found. Choose an original resource source, or download the required files separately before continuing installation."],["缺失的是自定义皮肤文件，请重新导入对应皮肤包；原版资源无法替代它。","The missing file belongs to a custom skin. Import its skin package again; original resources cannot replace it."],["皮肤包未包含的部分缺少可靠的原版资源，直接覆盖会保留旧皮肤。请选择原版资源来源，或单独下载所需资源。","Verified original resources are needed for files omitted by this skin package. Direct replacement would leave the old skin. Choose original resources or download the required resources separately."]]);
+
+// Selective resource downloader diagnostics; no account data enters these maps.
+window.VyraLocales.pairs.push(...[
+  [
+    "Steam 资源缓存包含链接或异常文件，已停止操作。",
+    "Steam resource cache contains a link or unexpected file"
+  ],
+  [
+    "请选择 1 至 20 个皮肤资源文件。",
+    "Select between one and twenty skin resources"
+  ],
+  [
+    "只能下载受支持的 Titanfall 2 皮肤资源。",
+    "Only known Titanfall 2 skin resources may be downloaded"
+  ],
+  [
+    "按文件下载 Steam 资源目前仅支持 Windows。",
+    "Selective Steam downloads currently require Windows"
+  ],
+  [
+    "资源下载已取消。",
+    "Resource download cancelled"
+  ],
+  [
+    "无法检查独立的 Steam 登录环境，请重试。",
+    "The isolated Steam sign-in profile could not be checked"
+  ],
+  [
+    "下载工具返回了无效信息，已停止下载。",
+    "Download helper produced an invalid output line"
+  ],
+  [
+    "下载工具未确认指定的资源文件列表，已停止下载。",
+    "The Steam helper did not confirm the exact resource file list"
+  ],
+  [
+    "请设置有效的资源缓存目录。",
+    "An absolute resource cache directory is required"
+  ],
+  [
+    "请先选择已安装的 Titanfall 2 游戏目录。",
+    "Select the installed Titanfall 2 directory first"
+  ],
+  [
+    "无法读取当前安装版本的 Steam 资源清单。",
+    "The installed Steam resource manifest is unavailable"
+  ],
+  [
+    "Steam 安装清单已改变，请重新检查修复方案。",
+    "The installed Steam manifest changed; refresh the repair plan"
+  ],
+  [
+    "Steam 资源清单未包含全部所选文件，无法继续下载。",
+    "The Steam manifest does not contain every selected resource"
+  ],
+  [
+    "Steam 资源清单中的文件区块不完整，无法验证下载。",
+    "The Steam resource chunks are incomplete"
+  ],
+  [
+    "所选资源的文件大小无效。",
+    "The selected resource size is invalid"
+  ],
+  [
+    "缓存中的下载工具已被修改，请删除该工具缓存后重试。",
+    "The cached Steam helper was modified; remove its cache and retry"
+  ],
+  [
+    "无法下载 DepotDownloader 工具，请检查网络后重试。",
+    "The DepotDownloader helper could not be downloaded. Check your network and try again."
+  ],
+  [
+    "DepotDownloader 工具未通过文件校验，已停止安装。",
+    "The DepotDownloader helper did not match its pinned checksum"
+  ],
+  [
+    "解压后的下载工具未通过文件校验，已停止安装。",
+    "The extracted Steam helper did not match its pinned checksum"
+  ],
+  [
+    "资源下载超过时间限制，请重试。",
+    "The resource download exceeded its time limit"
+  ],
+  [
+    "Steam 扫码登录超时，请重新扫码。",
+    "Steam QR sign-in timed out; try again"
+  ],
+  [
+    "Steam 资源下载长时间无响应，请重试。",
+    "The Steam download stopped responding; try again"
+  ],
+  [
+    "下载工具未能启动，请检查缓存目录后重试。",
+    "The Steam download helper could not start"
+  ],
+  [
+    "DepotDownloader 工具未能解压，请检查缓存目录后重试。",
+    "The DepotDownloader helper could not be extracted. Check the cache folder and try again."
+  ],
+  [
+    "Steam 未能下载所选资源，请确认账号拥有 Titanfall 2，并检查网络和磁盘空间。",
+    "Steam could not download the selected resources. Check ownership, connection and free disk space."
+  ],
+  [
+    "Steam 登录未完成，请用拥有 Titanfall 2 的账号在 Steam 手机应用中扫码确认。",
+    "Steam sign-in was not completed. Use the Steam mobile app and an account that owns Titanfall 2."
+  ],
+  [
+    "另一个资源正在下载，请等待完成或先取消。",
+    "A resource download is already running"
+  ],
+  [
+    "资源下载缓存必须放在游戏安装目录之外。",
+    "Resource downloads must be stored outside the installed game"
+  ],
+  [
+    "无法检查资源缓存所在磁盘的可用空间。",
+    "Free space in the resource cache could not be checked"
+  ],
+  [
+    "磁盘空间不足，无法存放所选资源及下载过程中的临时副本。",
+    "There is not enough free space for the selected resources and their temporary download copies"
+  ],
+  [
+    "Windows 将独立登录环境重定向到了其他目录，已在登录前停止下载。",
+    "Windows redirected the isolated Steam sign-in profile; the download was stopped before login"
+  ],
+  [
+    "缺少经校验的原版 VTF 资源索引。请选择原版资源来源，补齐同一武器的缺失皮肤部分。",
+    "A verified original VTF resource index is missing. Choose original resources to restore omitted skin parts for the same weapon."
+  ],
+  [
+    "原版 VTF 索引缓存与当前游戏版本不匹配或已损坏，请重新选择原版资源。",
+    "The original VTF index cache is damaged or does not match the installed game version. Choose original resources again."
+  ],
+  [
+    "所选资源未通过当前 Steam 版本的原版 VTF 索引校验，未修改游戏。",
+    "The selected resources failed original VTF index verification for the installed Steam version. The game was not changed."
+  ],
+  [
+    "原版皮肤缓存路径包含链接，已停止读取",
+    "The original skin cache path contains a link. Reading was stopped."
+  ],
+  [
+    "单独下载原版资源",
+    "Download original resources separately"
+  ],
+  [
+    "仅下载所需的原版资源到独立缓存，不执行 Steam 整体验证，不重置已有皮肤。下载完成后校验资源，再继续安装当前皮肤。",
+    "Only required original resources are downloaded to an isolated cache. Steam does not verify the whole installation or reset existing skins. After verification, installation of the selected skin continues."
+  ],
+  [
+    "开始单独下载",
+    "Start separate download"
+  ],
+  [
+    "选择原版资源来源，或单独下载所需资源后继续安装。",
+    "Choose an original resource source, or download the required resources separately to continue installation."
+  ]
+]);
+
+window.VyraLocales.pairs.push(["当前游戏资源版本与 DDS 安装位置不匹配。请更新 TFX 以匹配当前游戏资源版本，未修改游戏。","The game resource version does not match the DDS installation layout. Update TFX for the current game resources. The game was not changed."]);
+
+window.VyraLocales.pairs.push(["离线原皮包已损坏或与当前游戏资源版本不兼容，未修改游戏。","The offline original skin pack is damaged or incompatible with the current game resources. The game was not changed."],["离线原皮包路径包含链接或非普通文件，已停止读取。","The offline original skin pack path contains a link or a non-regular file. Reading was stopped."]);
+
+
+
+
+// Public one-click skin recovery guidance.
+Object.assign(window.VyraLocales.messages,{
+  "skinRecovery.steamPrivacyTitle": [
+    "Steam 授权与隐私",
+    "Steam authorization and privacy"
+  ],
+  "skinRecovery.steamPrivacyData": [
+    "无需在 TFX 输入 Steam 账号或密码。TFX 不会将 Steam 登录凭证上传到作者或其他第三方云端；扫码登录和游戏所有权验证仍需连接 Steam 服务器。",
+    "You do not enter a Steam account name or password in TFX. TFX does not upload Steam sign-in credentials to the developer or any other third-party cloud service. QR sign-in and game ownership verification still require a connection to Steam servers."
+  ],
+  "skinRecovery.steamPrivacySession": [
+    "本次会话由下载助手在本机隔离环境中临时使用，不启用“记住登录”，正常完成后清理临时认证数据。TFX 不将密码、令牌或二维码写入应用日志。",
+    "The download helper uses this session temporarily in an isolated local environment. Persistent sign-in is not enabled, and temporary authentication data is removed after normal completion. TFX does not write passwords, tokens or QR codes to application logs."
+  ],
+  "skinRecovery.autoInstall": [
+    "自动修复并安装",
+    "Repair and install automatically"
+  ],
+  "skinRecovery.downloadInstall": [
+    "下载并安装皮肤",
+    "Download and install skin"
+  ],
+  "skinRecovery.fileDetails": [
+    "查看所需文件",
+    "View required files"
+  ],
+  "skinRecovery.guideTitle": [
+    "仅在本地资源不足时需要 Steam 授权",
+    "Steam authorization is needed only when local resources are insufficient"
+  ],
+  "skinRecovery.guide1": [
+    "保持游戏关闭，确认下载量与可用空间，然后点“下载并安装皮肤”。TFX 会自动准备下载工具。",
+    "Keep the game closed, check the download size and free space, then choose “Download and install skin”. TFX prepares the download helper automatically."
+  ],
+  "skinRecovery.guide2": [
+    "打开 Steam 手机应用，在 Steam 令牌（Steam Guard）中扫描下方二维码，并用拥有 Titanfall 2 的账号确认登录。不需要在 TFX 输入账号或密码。",
+    "Open the Steam mobile app, scan the QR code below from Steam Guard, and approve sign-in with an account that owns Titanfall 2. You do not enter an account name or password in TFX."
+  ],
+  "skinRecovery.guide3": [
+    "授权后自动下载、校验、补齐资源并安装当前皮肤，无需重新导入。分阶段恢复时如再次出现二维码，用同一账号确认即可。",
+    "After authorization, TFX downloads, verifies, repairs resources and installs the selected skin automatically. No new import is needed. If staged recovery shows another QR code, approve it with the same account."
+  ],
+  "skinRecovery.authHint": [
+    "二维码由 Steam 登录流程生成。若超时，请取消后重试；没有手机扫码条件时，可改选完整原版资源目录。TFX 不保留本次登录会话。",
+    "The QR code comes from the Steam sign-in flow. If it expires, cancel and retry. If you cannot scan it with the mobile app, choose a complete original resource folder instead. TFX does not retain this sign-in session."
+  ],
+  "skinRecovery.budget": [
+    "缓存所在磁盘至少需要 {space} 可用空间（包含下载临时副本）。",
+    "The cache drive needs at least {space} of free space, including temporary download copies."
+  ],
+  "skinRecovery.stagedBudget": [
+    "先恢复小型索引，再只下载实际缺失的文件。总下载上限为 {size}，缓存至少预留 {space}；健康文件会跳过。",
+    "The small index is restored first, then only files actually missing are downloaded. The total download upper limit is {size}; reserve at least {space} for the cache. Healthy files are skipped."
+  ],
+  "skinRecovery.stagedConfirm": [
+    "分两阶段恢复：先下载 {count} 个已知资源文件，约 {size}，其中包含用于确定后续文件的小型索引。首次使用还需约 32 MB 的下载工具。全部下载存入独立缓存，不执行游戏整体验证。",
+    "Recovery has two stages: first download {count} known resource files, about {size}, including the small index used to identify remaining files. First use also needs a download helper of about 32 MB. All downloads go into a separate cache; the whole game is not validated."
+  ],
+  "skinRecovery.sourceHint": [
+    "TFX 会先检查本机资源和可信备份。此前装过皮肤也可以使用；已被修改的内容不会当成原皮。没有可靠来源时，仅下载所需原版资源到独立缓存。",
+    "TFX checks local resources and verified backups first. Previously installed skins are supported; modified data is never treated as original. If no trusted source exists, only required original resources are downloaded to a separate cache."
+  ],
+  "skinRecovery.confirm": [
+    "需下载 {count} 个原版资源文件，约 {size}；首次使用还需约 32 MB 的下载工具。文件存入独立缓存，仅替换当前皮肤涉及的武器，不执行游戏整体验证。",
+    "Download {count} original resource files, about {size}; first use also needs a download helper of about 32 MB. Files go into a separate cache. Only weapons affected by the selected skin are replaced; the whole game is not validated."
+  ],
+  "skinRecovery.checking": [
+    "正在检查本地缓存与修复计划…",
+    "Checking local caches and the repair plan…"
+  ],
+  "skinRecovery.helper": [
+    "正在准备下载工具…",
+    "Preparing the download helper…"
+  ],
+  "skinRecovery.authWaiting": [
+    "正在获取 Steam 登录二维码…",
+    "Getting a Steam sign-in QR code…"
+  ],
+  "skinRecovery.authenticated": [
+    "Steam 授权完成，正在准备下载…",
+    "Steam authorization complete. Preparing the download…"
+  ],
+  "skinRecovery.downloading": [
+    "正在下载所需原版资源",
+    "Downloading required original resources"
+  ],
+  "skinRecovery.verifying": [
+    "正在校验下载文件",
+    "Verifying downloaded files"
+  ],
+  "skinRecovery.repairing": [
+    "正在补齐资源并保存原皮缓存…",
+    "Repairing resources and saving original-skin caches…"
+  ],
+  "skinRecovery.installing": [
+    "正在备份并安装当前皮肤…",
+    "Backing up and installing the selected skin…"
+  ],
+  "skinRecovery.verified": [
+    "资源校验完成，正在继续安装…",
+    "Resource verification complete. Continuing installation…"
+  ],
+  "skinRecovery.stagePlan": [
+    "正在按索引确定后续下载文件…",
+    "Identifying remaining downloads from the index…"
+  ],
+  "skinRecovery.missingStock": [
+    "当前武器缺少可信原皮资源，请使用自动修复并安装，或选择完整原版资源来源。",
+    "Verified originals for this weapon are missing. Use automatic repair and installation, or choose a complete original resource source."
+  ],
+  "skinRecovery.legacyMissingStock": [
+    "同一武器缺少经校验的 DDS 原版资源，请在 DDS 安装页面提供原版资源备份后重试",
+    "Verified DDS originals for this weapon are missing. Use automatic repair and installation, or choose original resources."
+  ],
+  "skinRecovery.invalidRange": [
+    "common 索引中的资源范围超出当前官方文件，未修改游戏。",
+    "A common index resource range exceeds the current official file. The game was not changed."
+  ],
+  "skinRecovery.installUnavailable": [
+    "皮肤安装操作不可用，请更新启动器后重试。",
+    "Skin installation is unavailable. Update the launcher and try again."
+  ],
+  "skinRecovery.incompatible": [
+    "皮肤资源版本不兼容，未修改游戏。",
+    "The skin resource version is incompatible. The game was not changed."
+  ],
+  "skinRecovery.notComplete": [
+    "所需皮肤资源尚未补齐，请重新检查后再安装。",
+    "Required skin resources are still missing. Check again before installing."
+  ],
+  "skinRecovery.gameStarted": [
+    "游戏已启动，皮肤安装已取消。",
+    "The game started. Skin installation was cancelled."
+  ],
+  "skinRecovery.stageBudgetMissing": [
+    "分阶段修复缺少后续资源预算，请重新检查。",
+    "A staged repair must declare its additional resource budget"
+  ],
+  "skinRecovery.stageInvalid": [
+    "后续修复文件列表无效，已停止下载。",
+    "The additional repair resources are invalid"
+  ],
+  "skinRecovery.stageOverBudget": [
+    "后续资源超出已确认的修复范围，已停止下载。",
+    "The additional resource selection exceeded the confirmed repair budget"
+  ]
+});
+window.VyraLocales.pairs.push(...[["Steam 授权与隐私","Steam authorization and privacy"],["无需在 TFX 输入 Steam 账号或密码。TFX 不会将 Steam 登录凭证上传到作者或其他第三方云端；扫码登录和游戏所有权验证仍需连接 Steam 服务器。","You do not enter a Steam account name or password in TFX. TFX does not upload Steam sign-in credentials to the developer or any other third-party cloud service. QR sign-in and game ownership verification still require a connection to Steam servers."],["本次会话由下载助手在本机隔离环境中临时使用，不启用“记住登录”，正常完成后清理临时认证数据。TFX 不将密码、令牌或二维码写入应用日志。","The download helper uses this session temporarily in an isolated local environment. Persistent sign-in is not enabled, and temporary authentication data is removed after normal completion. TFX does not write passwords, tokens or QR codes to application logs."],["自动修复并安装","Repair and install automatically"],["下载并安装皮肤","Download and install skin"],["查看所需文件","View required files"],["仅在本地资源不足时需要 Steam 授权","Steam authorization is needed only when local resources are insufficient"],["保持游戏关闭，确认下载量与可用空间，然后点“下载并安装皮肤”。TFX 会自动准备下载工具。","Keep the game closed, check the download size and free space, then choose “Download and install skin”. TFX prepares the download helper automatically."],["打开 Steam 手机应用，在 Steam 令牌（Steam Guard）中扫描下方二维码，并用拥有 Titanfall 2 的账号确认登录。不需要在 TFX 输入账号或密码。","Open the Steam mobile app, scan the QR code below from Steam Guard, and approve sign-in with an account that owns Titanfall 2. You do not enter an account name or password in TFX."],["授权后自动下载、校验、补齐资源并安装当前皮肤，无需重新导入。分阶段恢复时如再次出现二维码，用同一账号确认即可。","After authorization, TFX downloads, verifies, repairs resources and installs the selected skin automatically. No new import is needed. If staged recovery shows another QR code, approve it with the same account."],["二维码由 Steam 登录流程生成。若超时，请取消后重试；没有手机扫码条件时，可改选完整原版资源目录。TFX 不保留本次登录会话。","The QR code comes from the Steam sign-in flow. If it expires, cancel and retry. If you cannot scan it with the mobile app, choose a complete original resource folder instead. TFX does not retain this sign-in session."],["缓存所在磁盘至少需要 {space} 可用空间（包含下载临时副本）。","The cache drive needs at least {space} of free space, including temporary download copies."],["先恢复小型索引，再只下载实际缺失的文件。总下载上限为 {size}，缓存至少预留 {space}；健康文件会跳过。","The small index is restored first, then only files actually missing are downloaded. The total download upper limit is {size}; reserve at least {space} for the cache. Healthy files are skipped."],["分两阶段恢复：先下载 {count} 个已知资源文件，约 {size}，其中包含用于确定后续文件的小型索引。首次使用还需约 32 MB 的下载工具。全部下载存入独立缓存，不执行游戏整体验证。","Recovery has two stages: first download {count} known resource files, about {size}, including the small index used to identify remaining files. First use also needs a download helper of about 32 MB. All downloads go into a separate cache; the whole game is not validated."],["TFX 会先检查本机资源和可信备份。此前装过皮肤也可以使用；已被修改的内容不会当成原皮。没有可靠来源时，仅下载所需原版资源到独立缓存。","TFX checks local resources and verified backups first. Previously installed skins are supported; modified data is never treated as original. If no trusted source exists, only required original resources are downloaded to a separate cache."],["需下载 {count} 个原版资源文件，约 {size}；首次使用还需约 32 MB 的下载工具。文件存入独立缓存，仅替换当前皮肤涉及的武器，不执行游戏整体验证。","Download {count} original resource files, about {size}; first use also needs a download helper of about 32 MB. Files go into a separate cache. Only weapons affected by the selected skin are replaced; the whole game is not validated."],["正在检查本地缓存与修复计划…","Checking local caches and the repair plan…"],["正在准备下载工具…","Preparing the download helper…"],["正在获取 Steam 登录二维码…","Getting a Steam sign-in QR code…"],["Steam 授权完成，正在准备下载…","Steam authorization complete. Preparing the download…"],["正在下载所需原版资源","Downloading required original resources"],["正在校验下载文件","Verifying downloaded files"],["正在补齐资源并保存原皮缓存…","Repairing resources and saving original-skin caches…"],["正在备份并安装当前皮肤…","Backing up and installing the selected skin…"],["资源校验完成，正在继续安装…","Resource verification complete. Continuing installation…"],["正在按索引确定后续下载文件…","Identifying remaining downloads from the index…"],["当前武器缺少可信原皮资源，请使用自动修复并安装，或选择完整原版资源来源。","Verified originals for this weapon are missing. Use automatic repair and installation, or choose a complete original resource source."],["同一武器缺少经校验的 DDS 原版资源，请在 DDS 安装页面提供原版资源备份后重试","Verified DDS originals for this weapon are missing. Use automatic repair and installation, or choose original resources."],["common 索引中的资源范围超出当前官方文件，未修改游戏。","A common index resource range exceeds the current official file. The game was not changed."],["皮肤安装操作不可用，请更新启动器后重试。","Skin installation is unavailable. Update the launcher and try again."],["皮肤资源版本不兼容，未修改游戏。","The skin resource version is incompatible. The game was not changed."],["所需皮肤资源尚未补齐，请重新检查后再安装。","Required skin resources are still missing. Check again before installing."],["游戏已启动，皮肤安装已取消。","The game started. Skin installation was cancelled."],["分阶段修复缺少后续资源预算，请重新检查。","A staged repair must declare its additional resource budget"],["后续修复文件列表无效，已停止下载。","The additional repair resources are invalid"],["后续资源超出已确认的修复范围，已停止下载。","The additional resource selection exceeded the confirmed repair budget"]]);

@@ -1,11 +1,11 @@
-TFX Launcher 1.0.0
+TFX Launcher 1.0.1
 作者：HarryCao
-项目：https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar
+项目：https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar
 邮箱：harrycaoguitar@gmail.com
-反馈：https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/issues
+反馈：https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues
 
 开始使用
-运行 TFX-Launcher-1.0.0.exe。目录版运行 TFX-Launcher/TFX-Launcher.exe，并保留整个目录。
+运行 TFX-Launcher-1.0.1.exe。目录版运行 TFX-Launcher/TFX-Launcher.exe，并保留整个目录。
 需要已安装的 TITANFALL 2 和正常可用的 Steam / EA 环境。启动器自动检查已保存目录、Steam 库与 EA 安装信息；无法识别时，手动选择包含 Titanfall2.exe 的游戏根目录。
 应用重复打开时会聚焦已有窗口，避免同一配置多实例同时写入。当前版本沿用 fold.json 配置名称，保留已有用户设置。
 

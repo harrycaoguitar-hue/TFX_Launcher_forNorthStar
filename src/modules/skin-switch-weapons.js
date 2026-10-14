@@ -7,7 +7,7 @@ const ALIASES=Object.freeze({
  spitfire:["spitfire","spitfire_lmg","lmg_hemlok"],devotion:["devotion","hemlok_br"],lstar:["lstar","l_star"],
  g2:["g2","g2a4"],doubletake:["doubletake","double_take"],longbow:["longbow","dmr"],kraber:["kraber"],
  eva8:["eva8","eva_8","eva8_stgn"],mastiff:["mastiff","mastiff_stgn"],wingman:["wingman","b3_wingman"],wingmanelite:["wingman_pstl"],p2016:["p2016","p2011","p2011_pstl"],
- re45:["re45","autopistol"],mozambique:["mozambique","pstl_sa3"],volt:["volt","hemlock_smg"],
+ re45:["re45","autopistol"],mozambique:["mozambique","pstl_sa3"],volt:["volt","hemlock_smg"],smartpistol:["smartpistol","smart_pistol","p2011sp"],
  epg:["epg"],coldwar:["coldwar","cold_war"],softball:["softball"],smr:["smr"],archer:["archer"],
  thunderbolt:["thunderbolt","arc_launcher"],charge_rifle:["charge_rifle","charge_rifle_mp","charge_rifle_at"],mgl:["mgl_at"]
 });
@@ -25,4 +25,7 @@ function weaponsFor(value,format='vtf'){
 }
 function packageWeapons(format,pkg){const found=new Set();for(const f of pkg.files){const names=weaponsFor(format==='dds'?f.name:f.path,format);if(names.length>1)throw Error("皮肤武器归属不明确，已停止跨格式替换");for(const name of names)found.add(name);}return [...found];}
 function belongs(value,weapons,format='vtf'){const owners=weaponsFor(value,format);return owners.length===1&&weapons.includes(owners[0]);}
-module.exports={ALIASES,DDS_NAMES,weaponsFor,packageWeapons,belongs};
+// This reverse mapping names only measured DDS families already supported by
+// the installer. Resource paths, rather than archive titles, choose the weapon.
+function ddsFamiliesForWeapons(weapons){return Object.entries(DDS_NAMES).filter(([,weapon])=>weapons.includes(weapon)).map(([name])=>name+"_default");}
+module.exports={ALIASES,DDS_NAMES,weaponsFor,packageWeapons,belongs,ddsFamiliesForWeapons};

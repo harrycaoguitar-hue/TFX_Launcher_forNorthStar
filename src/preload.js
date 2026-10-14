@@ -18,7 +18,7 @@ const sendChannels = new Set([
 
 const receiveChannels = new Set([
 	"window-state",
-	"dds-progress", "vtf-progress",
+	"dds-progress", "vtf-progress", "skin-resource-progress",
 	"launch-guard-result", "launch-status", "launch-compatibility", "northstar-client-progress",
 	"alert", "changed-settings", "confirm", "download-cancelled",
 	"duped-mod", "failed-mod", "gamepath-lost", "gamepath-status", "gamepath-error", "installed-mod",
@@ -37,7 +37,8 @@ const invokeChannels = new Set([
 	"vtf-status", "vtf-select", "vtf-inspect", "vtf-clear", "vtf-install", "vtf-restore", "vtf-delete-backup", "vtf-open-backups",
 	"dds-status", "dds-select", "dds-inspect", "dds-clear", "dds-install", "dds-restore", "dds-delete-backup", "dds-open-backups",
 	"dds-protection-status", "dds-protection-set", "dds-protection-capture",
-	"dds-originals-select", "dds-steam-repair",
+	"dds-originals-select", "vtf-originals-select",
+	"dds-resource-plan", "dds-resource-download", "dds-resource-cancel", "vtf-resource-plan", "vtf-resource-download", "vtf-resource-cancel",
 	"flush-dns-cache", "request", "set-system-dns"
 ]);
 

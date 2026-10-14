@@ -3,8 +3,9 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const t = (key, parameters) => I18n.t('ddsOriginal.' + key, parameters);
-  const state = {package:null,original:null,busy:false,actionBusy:false,error:'',confirming:false};
+  const state = {package:null,original:null,game:null,busy:false,actionBusy:false,error:'',confirming:false};
   const running = () => typeof is_running !== 'undefined' && Boolean(is_running);
+  const canSteamRepair = () => Boolean(state.original?.canSteamRepair || state.game?.canSteamRepair);
   function canInstall(pkg = state.package, original = state.original) {
     if (!pkg) return false;
     return original?.state === 'ready';
@@ -15,7 +16,8 @@
     const omitted = Number.isFinite(original?.omittedCount) ? original.omittedCount : null;
     const materialCount = Number.isFinite(original?.catalogueCount) ? original.catalogueCount : null;
     const busy = state.busy || state.actionBusy;
-    card.hidden = !state.package;
+    const resourceIssue = state.game && !state.game.ready && Array.isArray(state.game.issues) && state.game.issues.length > 0;
+    card.hidden = !state.package || Boolean(window.SkinRecovery && (resourceIssue || status !== 'ready'));
     card.dataset.state = status;
     card.setAttribute('aria-busy',String(busy));
     for (const [id,key] of [['ddsOriginalTitle','title'],['ddsOriginalSelect','select'],['ddsOriginalSteam','steam'],['ddsOriginalCheck','check'],['ddsOriginalConfirmText','confirmText'],['ddsOriginalSteamCancel','cancel'],['ddsOriginalSteamConfirm','confirm']]) $(id).textContent = t(key);
@@ -23,24 +25,28 @@
     $('ddsOriginalCount').hidden = omitted === null || materialCount === null;
     $('ddsOriginalCount').textContent = omitted !== null && materialCount !== null ? t('count',{covered:Math.max(0,materialCount-omitted),total:materialCount}) : '';
     $('ddsOriginalDetail').textContent = t(omitted === 0 && status === 'ready' ? 'completeHint' : status === 'ready' ? 'readyHint' : 'needsSourceHint',{count:omitted ?? '—'});
+    if (resourceIssue) {
+      $('ddsOriginalStatus').textContent = I18n.t(state.game.canRepair ? 'ddsResource.repairable' : 'ddsResource.needsSource');
+      $('ddsOriginalDetail').textContent = I18n.t(state.game.canRepair ? 'ddsResource.repairHint' : 'ddsResource.sourceHint');
+    }
     $('ddsOriginalReason').hidden = !original?.reason || status !== 'error';
     $('ddsOriginalReason').textContent = original?.reason ? I18n.text(original.reason) : '';
-    $('ddsOriginalActions').hidden = omitted === 0 && status === 'ready';
+    $('ddsOriginalActions').hidden = !resourceIssue && omitted === 0 && status === 'ready';
     $('ddsOriginalSelect').disabled = busy || running();
-    $('ddsOriginalSteam').disabled = busy || running() || !original?.canSteamRepair;
-    $('ddsOriginalSteam').title = original?.canSteamRepair ? '' : t('steamUnavailable');
+    $('ddsOriginalSteam').disabled = busy || running() || !canSteamRepair();
+    $('ddsOriginalSteam').title = canSteamRepair() ? '' : t('steamUnavailable');
     $('ddsOriginalCheck').disabled = busy || running();
-    if (running() || !state.package || (omitted === 0 && status === 'ready')) state.confirming = false;
+    if (running() || !state.package || (!resourceIssue && omitted === 0 && status === 'ready')) state.confirming = false;
     $('ddsOriginalConfirm').hidden = !state.confirming;
-    $('ddsOriginalSteamConfirm').disabled = busy || running() || !original?.canSteamRepair;
+    $('ddsOriginalSteamConfirm').disabled = busy || running() || !canSteamRepair();
     $('ddsOriginalSteamCancel').disabled = busy;
     $('ddsOriginalError').hidden = !state.error;
     $('ddsOriginalError').textContent = I18n.text(state.error);
-    if (!canInstall() || busy) $('ddsInstall').disabled = true;
+    if ((!canInstall() && !window.SkinRecovery?.canStart('dds',state)) || busy) $('ddsInstall').disabled = true;
     if (busy) for (const id of ['ddsSelectPackage','ddsSelectFolder','ddsClearPackage','ddsRefresh']) if ($(id)) $(id).disabled = true;
   }
   function update(value = {}) {
-    for (const key of ['package','original']) if (Object.prototype.hasOwnProperty.call(value,key)) state[key] = value[key];
+    for (const key of ['package','original','game']) if (Object.prototype.hasOwnProperty.call(value,key)) state[key] = value[key];
     if (Object.prototype.hasOwnProperty.call(value,'busy')) state.busy = Boolean(value.busy);
     render();
   }
@@ -64,13 +70,8 @@
     }
   }
   function openSteam(options = {}) {
-    if (state.busy || state.actionBusy || running() || !state.original?.canSteamRepair) return null;
-    if (!options.confirmed) {
-      state.confirming = true; state.error = ''; render();
-      $('ddsOriginalSteamConfirm').focus();
-      return {confirmationRequired:true};
-    }
-    return action('dds-steam-repair');
+    if (state.busy || state.actionBusy || running() || !canSteamRepair()) return null;
+    state.confirming = false;render();return window.SkinRecovery?.download('dds');
   }
   $('ddsOriginalSelect').addEventListener('click',() => action('dds-originals-select'));
   $('ddsOriginalCheck').addEventListener('click',() => action('dds-status'));

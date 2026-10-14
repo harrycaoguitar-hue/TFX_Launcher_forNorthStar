@@ -27,8 +27,9 @@ function titanfall(conf=settings()) {
 }
 const version={northstar,titanfall,launcher:()=>launcherVersion,viper:()=>launcherVersion};
 version.send_info=async()=>{
-  const conf={...settings()},client=await require("./northstar-clients").status(conf.northstarRegion,conf);
-  try {win().send("version",{ns:northstar(conf),tf2:titanfall(conf),vp:"v"+launcherVersion,client});}catch(_){/* A closed renderer does not invalidate the client check. */}
+  const conf={...settings()},clientContext={gamePath:conf.gamepath||"",nsargs:conf.nsargs||"",region:network.normalize(conf.northstarRegion)};
+  const client=await require("./northstar-clients").status(conf.northstarRegion,conf);
+  try {win().send("version",{ns:northstar(conf),tf2:titanfall(conf),vp:"v"+launcherVersion,client,clientContext});}catch(_){/* A closed renderer does not invalidate the client check. */}
 };
 ipcMain.on("get-version",()=>{void version.send_info();});
 module.exports=version;

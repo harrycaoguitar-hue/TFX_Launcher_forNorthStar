@@ -42,27 +42,11 @@ process.chdir(app.getPath("appData"));
  }
 }
 
-const mods = require("./modules/mods");
-const update = require("./modules/update");
-const version = require("./modules/version");
 const settings = require("./modules/settings");
 // The native language pack follows the saved app language, including previews
 // chosen on a previous run. Initial selection comes from the system language.
 const nativeUiLanguage = require("./locale").normalize(settings().uiLanguage);
 app.commandLine.appendSwitch("lang", nativeUiLanguage);
-
-// loads `ipcMain` events that dont fit in any of the modules directly
-require("./modules/ipc");
-require("./modules/gamepath");
-require("./modules/system_dns");
-
-// required to load launch IPC events
-require("./modules/launch");
-require("./modules/dds");
-require("./modules/vtf");
-require("./modules/skin-switch").installEngines({dds:require("./modules/dds"),vtf:require("./modules/vtf"),baseDir:path.join(app.getPath("appData"),"fold-launcher","skin-switch")});
-require("./modules/server-list").register(require("electron").ipcMain);
-require("./modules/launcher-update").register(require("electron"));
 
 // Finish the durable DDS journal before quitting after the last window closes.
 let waitingForDdsQuit = false;
@@ -157,10 +141,23 @@ function start() {
 		event.preventDefault();
 	});
 
-	// load `src/app/index.html` (the app)
+	// Start Chromium and its local document while Node loads the services below.
+	// Registrations remain synchronous in this turn: renderer IPC cannot be
+	// delivered until every launch guard and recovery service is installed.
 	win.loadFile(path.join(__dirname, "app/index.html"), {
-		userAgent: "TFX/" + version.viper(),
+		userAgent: "TFX/" + require("../package.json").version,
 	})
+	require("./modules/mods");
+	require("./modules/update");
+	require("./modules/version");
+	require("./modules/ipc");
+	require("./modules/gamepath");
+	require("./modules/system_dns");
+	require("./modules/launch");
+	const dds = require("./modules/dds"), vtf = require("./modules/vtf");
+	require("./modules/skin-switch").installEngines({dds,vtf,baseDir:path.join(app.getPath("appData"),"fold-launcher","skin-switch")});
+	require("./modules/server-list").register(require("electron").ipcMain);
+	require("./modules/launcher-update").register(require("electron"));
 
 	// print exceptions to terminal, and forward the exception to the
 	// renderer, it'll then show a more user friendly error message
@@ -172,10 +169,11 @@ function start() {
 		appConsole.error(err);
 	})
 
-	// load list of mods on initial load
+	// The accepted game directory requests its mod library through gui-getmods.
+	// Scanning here as well used to duplicate the same startup disk traversal.
 	win.webContents.on("dom-ready", () => {
-		win.send("mods", mods.list());
-	})
+		if (!settings().gamepath) win.send("mods", {all: [], enabled: [], disabled: []});
+	});
 
 	// Only game-component updates are supported. The launcher no longer
 	// derives an update feed from the original upstream GitHub repository.

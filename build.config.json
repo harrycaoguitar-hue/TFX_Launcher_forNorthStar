@@ -23,10 +23,10 @@
     "signAndEditExecutable": false
   },
   "portable": {
-    "artifactName": "TFX-Launcher-1.0.0.exe",
+    "artifactName": "TFX-Launcher-${version}.exe",
     "requestExecutionLevel": "user"
   },
-  "artifactName": "TFX-Launcher-1.0.0.exe",
+  "artifactName": "TFX-Launcher-${version}.exe",
   "files": [
     "src/**/*",
     "node_modules/**/*",

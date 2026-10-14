@@ -10,6 +10,9 @@ const {extractZip}=require('./local-mod-import');
 const { inspectTextureCoverage } = require("./dds-coverage");
 const { readJournals, summarizeBackups, prepareReplacement, overlaps, retired } = require("./dds-replacement");
 const { DdsOriginals } = require("./dds-originals");
+const { DdsLayoutCompatibility } = require("./dds-layout-compatibility");
+const { DdsResourceRecovery } = require("./dds-resource-recovery");
+const { DdsResourceTransaction } = require("./dds-resource-transaction");
 const {deletionPolicy,readBackupManifest,removeBackupDirectory,ddsBoundaryRequired,assertUnlinkedAncestors} = require("./backup-records");
 
 const MAX_FILES = 500;
@@ -109,8 +112,14 @@ class DdsEngine {
     this.emit = options.progress || (()=>{});
     this.packages = new Map();
     this.busy = false;
-    this.originals = new DdsOriginals({baseDir:this.baseDir,plan:(files,dir)=>this.plan(files,dir), progress:data=>this.emit(data), ...(options.manifestProvider?{manifestProvider:options.manifestProvider}:{})});
+    this.originals = new DdsOriginals({baseDir:this.baseDir,plan:(files,dir)=>this.plan(files,dir), progress:data=>this.emit(data), offlinePack:options.offlinePack, ...(options.manifestProvider?{manifestProvider:options.manifestProvider}:{})});
+    this.resources = new DdsResourceRecovery({baseDir:this.baseDir,isGameRunning:this.isGameRunning,progress:data=>this.emit(data),...(options.manifestProvider?{manifestProvider:options.manifestProvider}:{})});
+    const compatibility=new DdsLayoutCompatibility({manifestProvider:root=>this.resources.manifestProvider(root)});
+    // Injected manifests describe isolated test layouts; production always uses
+    // the verified catalogue fingerprint unless a validator is explicitly supplied.
+    this.layoutCompatibility=options.compatibilityValidator||(options.manifestProvider?async()=>({ready:true,layoutVerified:false,issues:[]}):compatibility.inspect.bind(compatibility));
   }
+  async assertLayout(root,rows){const state=await this.layoutCompatibility(root,rows);if(!state.ready)throw Error(state.error);return state;}
   progress(phase, percent, message) {this.emit({phase,percent,message});}
   async initialize() {await fsp.mkdir(path.join(this.baseDir,"packages"),{recursive:true}); await fsp.mkdir(path.join(this.baseDir,"backups"),{recursive:true});}
   async plan(files, dir) {
@@ -166,14 +175,10 @@ class DdsEngine {
     if(!gamePath)return {path:"",ready:false,error:"请先选择泰坦陨落 2 游戏目录"};
     const root=path.resolve(gamePath);
     try{await assertUnlinkedAncestors(path.join(root,"Titanfall2.exe"),resourcePathError);if(!(await fsp.lstat(path.join(root,"Titanfall2.exe"))).isFile())throw Error();}catch(error){return {path:root,ready:false,error:error.message===resourcePathError?resourcePathError:"目录中未找到 Titanfall2.exe"};}
-    if(pkg) for(const item of pkg.files) {
-      const file=path.join(root,"r2","paks","Win64",item.target);
-      try {await assertUnlinkedAncestors(file,resourcePathError);const stat=await fsp.lstat(file);if(!stat.isFile()||stat.nlink!==1||stat.size<item.offset+item.length)throw Error("游戏包大小不匹配");await fsp.access(file,fs.constants.R_OK|fs.constants.W_OK);} catch(err){return {path:root,ready:false,error:err.message===resourcePathError?resourcePathError:`${item.target} 不存在、尺寸不匹配或不可写`};}
-    }
     const base=path.join(root,"r2","paks","Win64");
-    if(!fs.existsSync(base))return {path:root,ready:false,error:"目录中未找到 r2/paks/Win64"};
-    try{await assertUnlinkedAncestors(base,resourcePathError);if(!(await fsp.lstat(base)).isDirectory())throw Error(resourcePathError);}catch(error){return {path:root,ready:false,error:error.message};}
-    return {path:root,ready:true};
+    try{await assertUnlinkedAncestors(base,resourcePathError);if(!(await fsp.lstat(base)).isDirectory())throw Error(resourcePathError);}catch(error){if(error.code!=="ENOENT")return {path:root,ready:false,error:error.message};}
+    const compatibility=await this.layoutCompatibility(root,pkg?.files||[]);if(!compatibility.ready)return {path:root,...compatibility};
+    return {path:root,...await this.resources.inspect(root,pkg?.files||[]),layoutVerified:compatibility.layoutVerified};
   }
   async backups(gamePath) {
     await this.initialize();const journals=await readJournals(this.baseDir,gamePath);
@@ -191,22 +196,31 @@ class DdsEngine {
   async activeBackups(gamePath) {return (await this.backups(gamePath)).filter(value=>value.activeCount>0);}
   async replacementStatus(gamePath, packageId) {
     const pkg=this.packages.get(packageId);if(!pkg||!gamePath)return null;
-    const game=await this.gameStatus(gamePath,pkg);if(!game.ready)return null;
+    const game=await this.gameStatus(gamePath);if(!game.ready)return null;
     try{return (await this.originals.prepare(pkg,game.path)).status;}catch(e){return {state:"error",complete:false,canSteamRepair:false,reason:errorText(e),missing:[]};}
   }
-  async importOriginals(gamePath, packageId, source) {return this.exclusively(async()=>{const pkg=this.packages.get(packageId);if(!pkg)throw Error("请先导入要安装的 DDS 皮肤");const game=await this.gameStatus(gamePath,pkg);if(!game.ready)throw Error(game.error);return (await this.originals.prepare(pkg,game.path,source)).status;});}
+  async repairResources(gamePath,packageId,source) {return this.exclusively(async()=>{const pkg=this.packages.get(packageId);if(!pkg)throw Error("请先导入要安装的 DDS 皮肤");const game=await this.gameStatus(gamePath);if(!game.ready)throw Error(game.error);await this.assertLayout(game.path,pkg.files);return this.resources.repair(game.path,pkg.files,source);});}
+  async importOriginals(gamePath, packageId, source) {return this.exclusively(async()=>{const pkg=this.packages.get(packageId);if(!pkg)throw Error("请先导入要安装的 DDS 皮肤");const game=await this.gameStatus(gamePath);if(!game.ready)throw Error(game.error);await this.assertLayout(game.path,pkg.files);const resources=await this.gameStatus(game.path,pkg);if(!resources.ready)await this.resources.repair(game.path,pkg.files,source);return (await this.originals.prepare(pkg,game.path,source)).status;});}
   async status(gamePath, packageId) {const pkg=this.packages.get(packageId);return {game:await this.gameStatus(gamePath,pkg),package:pkg?this.publicPackage(pkg):null,backups:await this.backups(gamePath),original:await this.replacementStatus(gamePath,packageId),busy:this.busy};}
   async exclusively(callback) {if(this.busy)throw Error("另一个皮肤操作正在执行");this.busy=true;try {if(await this.isGameRunning())throw Error("请先退出游戏，再安装或恢复皮肤");return await callback();}finally{this.busy=false;}}
   async install(gamePath, packageId, options = {}) {
     return this.exclusively(async()=>{
       const pkg=this.packages.get(packageId);if(!pkg)throw Error("请重新选择并校验皮肤包");
-      const game=await this.gameStatus(gamePath,pkg);if(!game.ready)throw Error(game.error);
+      let game=await this.gameStatus(gamePath,pkg);
+      if(!game.ready&&game.canRepair){await this.resources.repair(game.path,pkg.files);game=await this.gameStatus(gamePath,pkg);}
+      if(!game.ready)throw Error(game.error);
       const journals=await readJournals(this.baseDir,game.path);
       this.progress("backup",0,"正在检查旧皮肤与覆盖安装范围");
       const originalPlan=await this.originals.prepare(pkg,game.path);
       if(!originalPlan.status.complete)throw Error(originalPlan.status.reason);
-      const replacement=await prepareReplacement({pkg,journals,plan:(files,dir)=>this.plan(files,dir),dir:pkg.dir,readRange,hash,gamePath:game.path,originals:originalPlan.originals});
-      const unionStatus=await this.gameStatus(game.path,{files:replacement.rows});if(!unionStatus.ready)throw Error(unionStatus.error);
+      const replacement=await prepareReplacement({pkg,journals,plan:(files,dir)=>this.plan(files,dir),dir:pkg.dir,readRange,hash,gamePath:game.path,originals:originalPlan.originals,prepareResources:async rows=>{
+        let state=await this.gameStatus(game.path,{files:rows});
+        if(!state.ready&&state.canRepair){await this.resources.repair(game.path,rows);state=await this.gameStatus(game.path,{files:rows});}
+        if(!state.ready)throw Error(state.error);
+      }});
+      let unionStatus=await this.gameStatus(game.path,{files:replacement.rows});
+      if(!unionStatus.ready&&unionStatus.canRepair){await this.resources.repair(game.path,replacement.rows);unionStatus=await this.gameStatus(game.path,{files:replacement.rows});}
+      if(!unionStatus.ready)throw Error(unionStatus.error);
       const backupId=id(), dir=path.join(this.baseDir,"backups",backupId);
       // A monotonic timestamp keeps the restore stack deterministic even if the
       // system clock moves backwards or two installs finish in one millisecond.
@@ -227,15 +241,22 @@ class DdsEngine {
       if(options.beforeWrite)await options.beforeWrite({manifest,dir});
       let written=0;
       try {
-        // Check the entire baseline again before the first write.
-        for(const record of manifest.records)if(hash(await readRange(path.join(game.path,"r2","paks","Win64",record.target),record.offset,record.length))!==record.beforeHash)throw Error("游戏皮肤在备份后被其他程序修改，操作已取消");
+        const resources=new DdsResourceTransaction(game.path);
+        try{
+        // Check resource layout and the entire baseline before the first write.
+        await this.assertLayout(game.path,manifest.records);
+        for(const record of manifest.records)if(hash(await resources.read(path.join(game.path,"r2","paks","Win64",record.target),record.offset,record.length))!==record.beforeHash)throw Error("游戏皮肤在备份后被其他程序修改，操作已取消");
         if(await this.isGameRunning())throw Error("游戏已启动，安装已取消");
         for(let i=0;i<manifest.records.length;i++) {
           const record=manifest.records[i],file=path.join(game.path,"r2","paks","Win64",record.target);
-          written=i+1;await writeRange(file,record.offset,await fsp.readFile(path.join(dir,`${i}.after.bin`)));
-          if(hash(await readRange(file,record.offset,record.length))!==record.afterHash)throw Error("安装后的皮肤校验失败");
+          const after=await fsp.readFile(path.join(dir,`${i}.after.bin`));if(after.length!==record.length||hash(after)!==record.afterHash)throw Error("备份中的新皮肤已损坏，安装已取消");
+          await resources.write(file,record.offset,after,()=>{written=i+1;});
+          if(hash(await resources.read(file,record.offset,record.length))!==record.afterHash)throw Error("安装后的皮肤校验失败");
           this.progress("install",35+Math.round((i+1)/manifest.records.length*60),`写入并验证 ${i+1}/${manifest.records.length}`);
         }
+        if(await this.isGameRunning())throw Error("游戏已启动，安装已取消");
+        await resources.flush();
+        }finally{await resources.close();}
         manifest.state="installed";await writeJson(manifestPath,manifest);
       }catch(err){
         for(let i=written-1;i>=0;i--){
@@ -272,12 +293,18 @@ class DdsEngine {
       this.progress("restore",0,"备份校验通过，正在恢复皮肤");let written=0;
       if(await this.isGameRunning())throw Error("游戏已启动，请先退出游戏再恢复皮肤");
       try{
+        const resources=new DdsResourceTransaction(game.path);
+        try{
         for(let i=0;i<manifest.records.length;i++) {
           const r=manifest.records[i],target=path.join(game.path,"r2","paks","Win64",r.target);
-          written=i+1;await writeRange(target,r.offset,before[i].saved);
-          if(hash(await readRange(target,r.offset,r.length))!==r.beforeHash)throw Error("恢复后的皮肤校验失败");
+          if(hash(await resources.read(target,r.offset,r.length))!==hash(before[i].current))throw Error("恢复期间游戏皮肤发生变化，恢复已取消");
+          await resources.write(target,r.offset,before[i].saved,()=>{written=i+1;});
+          if(hash(await resources.read(target,r.offset,r.length))!==r.beforeHash)throw Error("恢复后的皮肤校验失败");
           this.progress("restore",Math.round((i+1)/manifest.records.length*95),`恢复并验证 ${i+1}/${manifest.records.length}`);
         }
+        if(await this.isGameRunning())throw Error("游戏已启动，请先退出游戏再恢复皮肤");
+        await resources.flush();
+        }finally{await resources.close();}
         manifest.state="restored";manifest.restoredAt=new Date().toISOString();await writeJson(file,manifest);
       }catch(err){
         for(let i=written-1;i>=0;i--){

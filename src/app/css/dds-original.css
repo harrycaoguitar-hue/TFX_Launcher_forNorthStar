@@ -19,3 +19,19 @@
 @keyframes dds-original-reveal{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:1120px){.dds-original-heading{flex-direction:column;gap:3px}.dds-original-count{max-width:100%;text-align:left}.dds-original-actions{gap:5px}.dds-original .fold-button{padding:7px 9px}}
 @media(prefers-reduced-motion:reduce){.dds-original-confirm{animation:none}}
+.skin-recovery-qr{display:table;background:#fff;color:#000;font-family:"Courier New",monospace!important;font-weight:400!important;font-size:8px!important;line-height:1!important;letter-spacing:0!important;padding:12px;margin:12px 0;white-space:pre;overflow:hidden;font-variant-ligatures:none}
+.skin-recovery-guide{margin:12px 0;padding:12px;border-radius:12px;background:rgba(var(--theme-ink-rgb),.035)}
+.skin-recovery-guide ol{margin:8px 0 0;padding-left:21px;font-size:11px;line-height:1.8;color:var(--ink)}
+.skin-recovery-guide li+li{margin-top:7px}
+.skin-recovery-privacy{margin:12px 0;padding:12px 14px;border:1px solid rgba(var(--theme-accent-rgb),.14);border-radius:12px;background:rgba(var(--theme-accent-rgb),.045)}
+.skin-recovery-privacy h4{font-size:11px;color:var(--cyan);margin:0 0 7px}
+.skin-recovery-privacy p{font-size:10px;line-height:1.8;color:var(--ink);margin:0;overflow-wrap:anywhere}
+.skin-recovery-privacy p+p{margin-top:7px;color:var(--muted)}
+.dds-original details{margin-top:10px;font-size:10px;line-height:1.7;color:var(--muted)}
+.dds-original summary{cursor:pointer;color:var(--cyan)}
+.dds-original details ul{max-height:160px;overflow:auto;overflow-wrap:anywhere;padding-left:18px}
+.skin-recovery-meter{height:4px;margin:12px 0 16px;overflow:hidden;border-radius:8px;background:rgba(var(--theme-ink-rgb),.08)}
+.skin-recovery-meter span{display:block;height:100%;border-radius:inherit;background:var(--cyan);transition:width .25s ease-out}
+.skin-recovery-meter.indeterminate span{animation:skin-recovery-scan 1.4s ease-in-out infinite}
+@keyframes skin-recovery-scan{from{transform:translateX(-110%)}to{transform:translateX(310%)}}
+@media(prefers-reduced-motion:reduce){.skin-recovery-meter span{transition:none}.skin-recovery-meter.indeterminate span{animation:none;width:100%!important;opacity:.55}}

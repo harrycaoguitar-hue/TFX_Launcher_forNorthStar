@@ -6,7 +6,10 @@
   const state = {package:null,protection:null,game:{ready:false,path:''},busy:false,actionBusy:false,error:'',confirming:false,refreshBusy:false,processRunning:false};
   let revision = 0;
   let refreshing = null;
+  let refreshingPath = '';
   let ddsWasBusy = false;
+  const visible = () => $('options').classList.contains('shown');
+  const refreshVisible = () => { if (visible() || state.package || state.actionBusy) return refresh(); };
   const normalizedPath = path => String(path || '').trim().replace(/[\\/]+/g,'/').replace(/\/+$/,'').toLowerCase();
   const gamePath = () => normalizedPath(typeof settings !== 'undefined' ? settings.gamepath : '');
   const currentProtection = protection => !protection || !Object.prototype.hasOwnProperty.call(protection,'gamePath') || normalizedPath(protection.gamePath) === gamePath();
@@ -88,9 +91,10 @@
     }
   }
   async function refresh(options = {}) {
-    if (refreshing && !options.fresh) return refreshing;
+    if (refreshing && !options.fresh && refreshingPath === gamePath()) return refreshing;
     const ticket = ++revision;
     const requestPath = gamePath();
+    refreshingPath = requestPath;
     state.refreshBusy = true;
     state.confirming = false;
     renderProtection();
@@ -154,17 +158,17 @@
     if (!result.ok && result.scope === 'client') new Toast({scheme:'error',title:I18n.t('client.switchFailed'),description:I18n.text(result.error || result.reason || ''),timeout:9000});
     else if (!result.ok) toast('launchFailed',true,result.error || result.reason || t('operationError'));
     else if (result.restored) toast('restored');
-    refresh({fresh:true});
+    refreshVisible();
   });
-  ipcRenderer.on('newpath',(_event,path) => {state.game={ready:false,path:path||''};refresh({fresh:true});});
+  ipcRenderer.on('newpath',(_event,path) => {state.game={ready:false,path:path||''};refreshVisible();});
   function invalidateGame() {++revision;refreshing=null;state.refreshBusy=false;state.game={ready:false,path:''};state.protection=null;state.confirming=false;renderProtection();}
-  ipcRenderer.on('gamepath-status',(_event,game) => {if (!game?.valid) invalidateGame(); else refresh({fresh:true});});
+  ipcRenderer.on('gamepath-status',(_event,game) => {if (!game?.valid) invalidateGame(); else refreshVisible();});
   ipcRenderer.on('gamepath-lost',invalidateGame);
-  ipcRenderer.on('changed-settings',(_event,value) => {if (value && ['gamepath','northstarRegion','nsargs'].some(key => Object.prototype.hasOwnProperty.call(value,key))) refresh({fresh:true});});
-  ipcRenderer.on('is-running',(_event,value) => {state.processRunning=Boolean(value);renderProtection();if(!value)refresh({fresh:true});});
+  ipcRenderer.on('changed-settings',(_event,value) => {if (value && ['gamepath','northstarRegion','nsargs'].some(key => Object.prototype.hasOwnProperty.call(value,key))) refreshVisible();});
+  ipcRenderer.on('is-running',(_event,value) => {state.processRunning=Boolean(value);renderProtection();if(!value)refreshVisible();});
+  events.on('popup-changed',({popup,new_state:shown}) => {if (popup.id === 'options' && shown) refresh();});
   window.addEventListener('vyra-language-changed',render);
   window.addEventListener('tfx-settings-saving-changed',renderProtection);
   window.DDSGuard = Object.freeze({update,refresh,setEnabled,capture,get state(){return {...state};}});
   render();
-  refresh();
 })();

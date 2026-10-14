@@ -11,10 +11,13 @@ function fixture(format){
   class Cache{constructor(){this.sessionDir=path.join(base,"cache");}async initialize(){}async releaseExcept(){return [];}async close(){}}
   const gate={busy:false,async run(label,action){calls.push(["gate",label]);return action();}},noop=async()=>false;
   const mocks={electron:{app,ipcMain:{handle:(name,cb)=>callbacks.set(name,cb)},dialog:{},BrowserWindow:{},shell:{}},"./dds-engine":{DdsEngine:Engine,errorText:error=>error.message},"./vtf-engine":{VtfEngine:Engine,errorText:error=>error.message},"./vtf-cache":{VtfImportCache:Cache},"./settings":()=>saved,"./is_running":{game:noop},"./dds-operation-gate":gate,"./dds-guard":protection};
+  let resourceAdapter;
+  mocks["./skin-resource-download"]={register(_kind,options){resourceAdapter=options;}};
+  mocks["./offline-skin-pack"]={OfflineSkinPack:class{},productionDirectories:()=>[]};
   const filename=path.join(__dirname,"../src/modules",format+".js"),context={require:id=>Object.hasOwn(mocks,id)?mocks[id]:require(id),__dirname:path.dirname(filename),module:{exports:{}},console};
   vm.runInNewContext(fs.readFileSync(filename,"utf8"),context,{filename});
   const event={sender:{isDestroyed:()=>false,send(){}}};
-  return {game,calls,callbacks,event,saved,protection,setCaptureFailure:()=>{captureFails=true;},setCommitFailure:()=>{commitFails=true;},setInstallFailure:()=>{installFails=true;},statusCalls:()=>engineStatusCalls};
+  return {game,calls,callbacks,event,saved,protection,resourceAdapter,setCaptureFailure:()=>{captureFails=true;},setCommitFailure:()=>{commitFails=true;},setInstallFailure:()=>{installFails=true;},statusCalls:()=>engineStatusCalls};
 }
 test("standalone settings protection status does not scan DDS engine or imported package",async()=>{const f=fixture("dds"),result=await f.callbacks.get("dds-protection-status")();assert.equal(result.ok,true);assert.equal(result.game.ready,true);assert.equal(result.running,false);assert.equal(result.busy,false);assert.equal(result.protection.ddsCount,1);assert.equal(f.statusCalls(),0);});
 test("standalone settings status requires an absolute directory containing a regular Titanfall2.exe",async()=>{
@@ -27,6 +30,13 @@ test("both installation adapters preserve successful install while returning cap
   for(const format of ["dds","vtf"])for(const where of ["capture","commit"]){const f=fixture(format);await f.callbacks.get(format+"-inspect")(f.event,{path:path.join(f.game,"Fixture.zip")});if(where==="capture")f.setCaptureFailure();else f.setCommitFailure();const result=await f.callbacks.get(format+"-install")(f.event,{packageId:"package-id"});assert.equal(result.ok,true);assert.match(result.protectionWarning,new RegExp(where+" warning"));assert.equal(result.protection.activeCount,1);}
 });
 test("failed installs do not commit compatibility snapshots and errors still return unified protection",async()=>{for(const format of ["dds","vtf"]){const f=fixture(format);await f.callbacks.get(format+"-inspect")(f.event,{path:path.join(f.game,"Fixture.zip")});f.setInstallFailure();f.calls.length=0;const result=await f.callbacks.get(format+"-install")(f.event,{packageId:"package-id"});assert.equal(result.ok,false);assert.equal(f.calls.some(item=>item[0]==="commit"),false);assert.equal(result.protection.activeCount,1);}});
+
+test("automatic repair uses the same protected installation adapter as direct installation",async()=>{
+  for(const format of ["dds","vtf"]){const f=fixture(format);await f.callbacks.get(format+"-inspect")(f.event,{path:path.join(f.game,"Fixture.zip")});f.calls.length=0;const result=await f.resourceAdapter.install(f.game,"package-id",{packageId:"package-id"});assert.equal(result.result.backupId,"backup-id");assert.deepEqual(f.calls.filter(item=>["prepare","install","commit"].includes(item[0])).map(item=>item[0]),["prepare","install","commit"]);}
+});
+test("automatic installation rejects a game path changed during compatibility capture",async()=>{
+  for(const format of ["dds","vtf"]){const f=fixture(format);await f.callbacks.get(format+"-inspect")(f.event,{path:path.join(f.game,"Fixture.zip")});f.protection.prepareCapture=async()=>{f.saved.gamepath=path.join(f.game,"changed");return {};};f.calls.length=0;await assert.rejects(f.resourceAdapter.install(f.game,"package-id",{packageId:"package-id"}),/选择|校验/);assert(!f.calls.some(item=>["install","commit"].includes(item[0])));}
+});
 test("VTF restore and deletion responses include unified protection and bind operation game path",async()=>{const f=fixture("vtf");for(const action of ["restore","delete-backup"]){const result=await f.callbacks.get("vtf-"+action)(f.event,{backupId:"backup-id"});assert.equal(result.ok,true);assert.equal(result.protection.vtfCount,1);}});
 
 test.after(() => {

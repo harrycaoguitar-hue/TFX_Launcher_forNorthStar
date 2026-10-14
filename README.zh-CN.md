@@ -6,7 +6,7 @@
 
 同一份 TITANFALL 2 安装，就能在 Northstar 全球服与 NorthstarCN 国服之间切换。选好渠道并启动，TFX 会自动切换对应客户端文件。导入兼容的 DDS 或 VTF 皮肤包，确认安装计划后点击 **安装**，即可完成皮肤导入，同时保存恢复备份。
 
-**[下载 Windows x64 版](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/releases/latest)** · [反馈问题](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/issues) · [从源码构建](BUILD.md)
+**[下载 Windows x64 版](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest)** · [反馈问题](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [从源码构建](BUILD.md)
 
 ### 为什么值得试试 TFX？
 
@@ -45,11 +45,11 @@ Windows x64 · 需要已安装的 TITANFALL 2 · 首次安装客户端与启动�
 - Windows 64 位系统。本版本提供 Windows x64 发行包。
 - 已购买并安装的 TITANFALL 2，以及正常可用的 Steam / EA 启动环境。TFX 不包含游戏本体。
 - 游戏目录和数据存储盘有足够空间，用于客户端安装、下载缓存和皮肤恢复备份。
-- 浏览服务器、访问 Thunderstore 和检查更新需要网络。1.0.0 附带两套 Northstar 客户端的首次安装数据；安装客户端不代表可以离线联机。
+- 浏览服务器、访问 Thunderstore 和检查更新需要网络。1.0.1 附带两套 Northstar 客户端的首次安装数据；安装客户端不代表可以离线联机。
 
 #### 开始使用
 
-1. 在 [Releases](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/releases/latest) 下载 `TFX-Launcher-1.0.0.exe` 并运行。
+1. 在 [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest) 下载 `TFX-Launcher-1.0.1.exe` 并运行。
 2. TFX 会检查已保存的目录、Steam 游戏库和 EA 安装信息。自动识别失败时，点击 **选择目录 / 更改目录**，选择包含 `Titanfall2.exe` 的游戏根目录；不要选择 `steamapps`、`common` 或模组子目录。
 3. 首次打开时，中文系统使用对应的简体或繁体中文，其他系统默认英语。可在 **偏好设置 → 外观与语言** 中更改，保存后会记住你的选择。
 4. 在 **开始游戏** 选择原版或北极星。北极星还需要选择 **国服 / 全球服**；如果对应客户端显示未安装，先安装，再启动游戏。
@@ -70,7 +70,7 @@ Windows x64 · 需要已安装的 TITANFALL 2 · 首次安装客户端与启动�
 
 **北极星** 模式提供两个客户端渠道：
 
-| 选择 | 客户端 | 1.0.0 内置首次安装版本 |
+| 选择 | 客户端 | 1.0.1 内置首次安装版本 |
 |---|---|---|
 | 国服 | NorthstarCN | 1.17.7 |
 | 全球服 | Northstar | 1.31.13 |
@@ -96,7 +96,7 @@ TFX 分别检查两个客户端的实际文件和安装状态，显示未安装�
 
 北极星首页左下角保留所选网络公开服务器的在线人数。这里是公开目录中的人数汇总，不是所有玩家的在线总量。时间与更新时间按本机系统时间显示，服务器人数会随刷新变化。
 
-服务器列表用于浏览。启动相应客户端后，在游戏内的服务器浏览器中加入服务器；TFX 1.0.0 不提供从列表直接加入游戏的功能。
+服务器列表用于浏览。启动相应客户端后，在游戏内的服务器浏览器中加入服务器；TFX 1.0.1 不提供从列表直接加入游戏的功能。
 
 <a id="zh-mods"></a>
 
@@ -228,7 +228,7 @@ DNS 工具只在主动操作并确认后修改系统网络设置，更换 DNS �
 #### 两类更新
 
 - **Northstar 客户端更新：** 更新游戏目录中对应渠道的客户端，通过首页和北极星更新设置管理。
-- **TFX 应用更新：** 在 **偏好设置 → 关于 → 应用更新** 读取[本仓库的最新正式 Release](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/releases/latest)。检查结果区分已是最新、存在新版、尚未发布和网络失败。选择下载后打开官方 GitHub 链接，不在后台静默替换运行中的程序。
+- **TFX 应用更新：** 在 **偏好设置 → 关于 → 应用更新** 读取[本仓库的最新正式 Release](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest)。检查结果区分已是最新、存在新版、尚未发布和网络失败。选择下载后打开官方 GitHub 链接，不在后台静默替换运行中的程序。
 
 Release 提供应用、对应源码、英文验收与署名说明，以及 SHA-256 校验清单。使用发布页的 EXE；GitHub 自动生成的源码下载是开发者用源码，不是可运行的 Windows 应用。
 
@@ -278,7 +278,7 @@ npm run dist
 
 作者：**HarryCao**。
 
-如遇使用问题或有改进建议，欢迎通过 [GitHub Issues](https://github.com/harrycaoguitar-hue/TFX_Launcher_forNorthStar/issues) 反馈，或发送邮件至 **harrycaoguitar@gmail.com**。建议提供 TFX 版本、所选客户端、操作步骤和报错文字；附日志前检查其中的个人路径等信息。
+如遇使用问题或有改进建议，欢迎通过 [GitHub Issues](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) 反馈，或发送邮件至 **harrycaoguitar@gmail.com**。建议提供 TFX 版本、所选客户端、操作步骤和报错文字；附日志前检查其中的个人路径等信息。
 
 #### 特别鸣谢
 
@@ -296,6 +296,6 @@ npm run dist
 
 TFX 是基于 ViperCN 1.11.3 的 **GPL-3.0-or-later** 衍生项目。模组管理、Thunderstore 浏览与安装、DDS / VTF 安装及双客户端管理等部分已采用本项目新增实现；这些工作不会取消沿用代码的许可、署名与提供对应源码义务，也不表示整个应用是净室重写。
 
-完整项目许可见 [LICENSE](LICENSE)，来源与第三方组件说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。官方客户端、下载模组、Electron 运行时、字体和压缩工具保留各自许可证。1.0.0 内置全球服包省略了许可未明确的可选 Discord Rich Presence 插件；核心客户端与社区服务器菜单保留，后续通过官方发布下载的完整更新按官方内容安装。
+完整项目许可见 [LICENSE](LICENSE)，来源与第三方组件说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。官方客户端、下载模组、Electron 运行时、字体和压缩工具保留各自许可证。1.0.1 内置全球服包省略了许可未明确的可选 Discord Rich Presence 插件；核心客户端与社区服务器菜单保留，后续通过官方发布下载的完整更新按官方内容安装。
 
 TFX 是社区项目，与 Respawn Entertainment 或 Electronic Arts 无隶属关系，也不代表其官方认可。TITANFALL 2 名称、标识和游戏素材属于各自权利人。
