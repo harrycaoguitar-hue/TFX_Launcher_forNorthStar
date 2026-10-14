@@ -1,0 +1,14 @@
+.fold-backup-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.fold-backup-entry>div:first-child{min-width:0}
+.backup-record-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.backup-record-actions .fold-button{white-space:nowrap}
+.backup-delete .fold-icon{width:15px;height:15px}
+.backup-delete:not(:disabled):hover{color:#ffbdc8;background:rgba(224,101,124,.10);border-color:rgba(224,101,124,.24)}
+.backup-delete:disabled{opacity:.38;cursor:not-allowed}
+.backup-delete-confirm{grid-column:1/-1;padding:12px 14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.075);border-radius:12px}
+.backup-delete-confirm p{font-size:12px;line-height:1.65;color:var(--muted,#acb3c4);margin:0 0 10px}
+.backup-delete-confirm>div{display:flex;gap:8px;justify-content:flex-end}
+.backup-history-extra[hidden]{display:none}
+.backup-history-toggle{display:block;margin:14px auto 2px;color:var(--muted,#acb3c4)}
+@media(max-width:1150px){.fold-backup-entry{grid-template-columns:minmax(0,1fr)}.backup-record-actions{justify-content:flex-start}}
+@media(prefers-reduced-motion:reduce){.backup-delete,.backup-history-toggle{transition:none}}
