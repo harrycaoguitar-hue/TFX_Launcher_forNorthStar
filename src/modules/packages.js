@@ -4,7 +4,7 @@
 // validation and transactional installation are owned by TFX modules.
 const path = require("path");
 const fs = require("fs");
-const {app, ipcMain} = require("electron");
+const {app, ipcMain, net} = require("electron");
 const settings = require("./settings");
 const region = require("./northstar-region");
 const {splitArguments, hasGame} = require("./launch-session");
@@ -13,7 +13,9 @@ const gate = require("./dds-operation-gate");
 const win = require("../win");
 const lang = require("../lang");
 const catalog = require("./thunderstore");
-const {createInstaller, inspectPackage, listPackages, formatName, splitName, removePackageSync, trustedDownloadURL} = require("./thunderstore-install");
+const {createInstaller, inspectPackage, listPackages, formatName, splitName, removePackageSync, trustedDownloadURL, downloadPackage} = require("./thunderstore-install");
+const {createRequest} = require("./thunderstore-transport");
+const downloadRequest = createRequest(net);
 
 function selection() {
 	const conf = settings();
@@ -40,6 +42,7 @@ const installer = createInstaller({
 	profile: selection,
 	cacheRoot: () => fs.existsSync("D:/") ? "D:/TFX-Launcher-Data/thunderstore" : path.join(app.getPath("userData"), "thunderstore"),
 	planInstall: (request, options) => catalog.planInstall(request, options),
+	download: (url, destination, options) => downloadPackage(url, destination, {...options, request:downloadRequest}),
 	guard,
 	commit: action => gate.run("thunderstore-mods", action),
 	progress: value => send("pkg-progress", value),

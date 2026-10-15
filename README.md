@@ -8,17 +8,40 @@ Play on both Northstar networks from the same TITANFALL 2 installation. Select G
 
 **[Download for Windows x64](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest)** · [Report an issue](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
 
+<p align="center">
+  <img src="docs/images/play.webp" alt="TFX in English: Northstar Global and China client switching in a frosted interface" width="1120">
+</p>
+
 ### Why try TFX?
 
 | What you want to do | How TFX helps |
 |---|---|
 | Play on Global or China | Switch between **Northstar** and **NorthstarCN** from the launcher. Install either client here if it is missing. |
-| Install a new skin | Import **DDS or VTF** skins, including animated VTF packages, and install with one click after validation. Compatible VTF archives can be ZIP, 7z, RAR, and more. |
+| Install a new skin | Import **DDS or VTF** skins and install with one click after validation. Compatible VTF archives can be ZIP, 7z, RAR, and more. |
 | Replace a skin on the same weapon | Replace supported skins across **DDS and VTF** formats, clean up previous skin resources, and keep recovery backups. |
 | Find servers and mods | Browse each network's public servers, search your installed mods, and download Thunderstore mods with their dependencies. |
 | Make it your own | Choose **10 themes** and **5 languages** in a frosted interface, with an option to exit TFX after a successful launch. |
 
 Windows x64 · Requires an installed copy of TITANFALL 2 · First-time client installation is separate from launch
+
+### A closer look
+
+Actual TFX 1.0.2 interface, shown in English. Numbered mods, skins, servers, and installation states are demonstration data; these images do not represent live server availability.
+
+| Your mods, organized | Community servers at a glance |
+|:---:|:---:|
+| ![Search, sort, and toggle installed mods](docs/images/mods.webp) | ![Browse the Global and China public server directories](docs/images/servers.webp) |
+| **DDS installation** · review the package before installing | **VTF installation** · use the same focused workflow |
+| ![DDS skin import and installation plan](docs/images/dds.webp) | ![VTF skin import and installation plan](docs/images/vtf.webp) |
+
+<details>
+<summary><strong>Make it yours — 10 themes and 5 languages</strong></summary>
+
+![TFX appearance and language preferences](docs/images/preferences.webp)
+
+Choose a theme and language in the app, then save your preferences.
+
+</details>
 
 <a id="en"></a>
 
@@ -45,11 +68,11 @@ Windows x64 · Requires an installed copy of TITANFALL 2 · First-time client in
 - A 64-bit Windows system. This release provides a Windows x64 build.
 - A purchased, installed copy of TITANFALL 2 and a working Steam / EA launch environment. TFX does not include the game.
 - Enough free space on the game and data drives for client installation, download caches, and skin recovery backups.
-- Internet access for server browsing, Thunderstore, and update checks. Version 1.0.1 includes first-install data for both Northstar clients; installing a client does not make online play available offline.
+- Internet access for server browsing, Thunderstore, and update checks. Version 1.0.2 includes first-install data for both Northstar clients; installing a client does not make online play available offline.
 
 #### Getting started
 
-1. Download and run `TFX-Launcher-1.0.1.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
+1. Download and run `TFX-Launcher-1.0.2.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
 2. TFX checks your saved location, Steam libraries, and EA installation information. If detection fails, use **Choose folder / Change folder** to select the game root containing `Titanfall2.exe`. Do not select `steamapps`, `common`, or a mod subfolder.
 3. On first use, Chinese system languages select Simplified or Traditional Chinese as appropriate; other system languages default to English. Change this in **Preferences → Appearance & language** and save to keep your choice.
 4. In **Play**, choose vanilla or Northstar. For Northstar, also choose **CN / Global**. If the selected client is not installed, install it before launching.
@@ -70,7 +93,7 @@ The home page shows the game folder and lets you open or change it. The end-game
 
 **Northstar** offers two client channels:
 
-| Selection | Client | First-install version bundled with 1.0.1 |
+| Selection | Client | First-install version bundled with 1.0.2 |
 |---|---|---|
 | CN | NorthstarCN | 1.17.7 |
 | Global | Northstar | 1.31.13 |
@@ -96,7 +119,7 @@ Data comes from each network's public server directory. You can refresh manually
 
 The lower-left corner of the Northstar home page shows the selected network's public-server player count. This is a sum from the public directory, not a count of every player online. Displayed times and refresh timestamps use your computer's system time; player counts change with directory refreshes.
 
-This list is for browsing. Launch the matching client and join through its in-game server browser. TFX 1.0.1 does not join games directly from its server list.
+This list is for browsing. Launch the matching client and join through its in-game server browser. TFX does not join games directly from its server list.
 
 <a id="en-mods"></a>
 
@@ -272,7 +295,7 @@ npm start
 npm run dist
 ```
 
-See [BUILD.md](BUILD.md) for full requirements, outputs, and license handling. Keep the tools, client data, and licenses in `src/tools/`; they are needed for builds and offline first installation. Dependencies are pinned for the release. This repository's `npm test` covers 324 tests; the English acceptance and attribution document attached to the Release describes the scope and limits of actual-machine validation.
+See [BUILD.md](BUILD.md) for full requirements, outputs, and license handling. Keep the tools, client data, and licenses in `src/tools/`; they are needed for builds and offline first installation. Dependencies are pinned for the release. This repository's `npm test` covers 592 tests; the English acceptance and attribution document attached to the Release describes the scope and limits of actual-machine validation.
 
 #### Support
 
@@ -296,6 +319,6 @@ Thank you to these teams and contributors, and to everyone who tested TFX or pro
 
 TFX is a **GPL-3.0-or-later** derivative of ViperCN 1.11.3. Mod management, Thunderstore browsing and installation, DDS / VTF installation, and dual-client management include new implementations written for this project. This work does not remove attribution, license, or corresponding-source obligations for inherited code, and does not make the entire application a clean-room rewrite.
 
-See [LICENSE](LICENSE) for the project license and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance and third-party notices. Official clients, downloaded mods, the Electron runtime, fonts, and archive tools retain their own licenses. The Global client bundled with 1.0.1 omits the optional Discord Rich Presence plugin because its redistribution license was not clearly declared. Core client files and the community-server menu remain included; full updates downloaded from official releases are installed with their official contents.
+See [LICENSE](LICENSE) for the project license and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance and third-party notices. Official clients, downloaded mods, the Electron runtime, fonts, and archive tools retain their own licenses. The Global client bundled with 1.0.2 omits the optional Discord Rich Presence plugin because its redistribution license was not clearly declared. Core client files and the community-server menu remain included; full updates downloaded from official releases are installed with their official contents.
 
 TFX is a community project and is not affiliated with or endorsed by Respawn Entertainment or Electronic Arts. The TITANFALL 2 name, logo, and game assets belong to their respective rights holders.

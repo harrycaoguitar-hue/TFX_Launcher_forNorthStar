@@ -123,20 +123,38 @@ function trustedDownloadURL(value) {
 }
 async function downloadArchive(url, destination, options = {}) {
 	const signal = options.signal, maxBytes = options.maxBytes || MAX_ARCHIVE, timeoutMs = options.timeoutMs || 180000;
-	const request = options.request || https.get; let received = 0, total = 0, lastProgress = 0, currentRequest = null, currentResponse = null, ownsFile = false;
+	const connectTimeoutMs = options.connectTimeoutMs || 12000, idleTimeoutMs = options.idleTimeoutMs || 20000;
+	const request = options.request || https.get; let received = 0, total = 0, lastProgress = 0, currentRequest = null, currentResponse = null, ownsFile = false, rejectConnection, stopped;
+	const controller = new AbortController(); let idleTimer;
 	if (!trustedDownloadURL(url)) throw failure("DOWNLOAD_URL", "The package URL is not a Thunderstore HTTPS endpoint.");
-	const deadline = setTimeout(() => {currentRequest?.destroy(failure("DOWNLOAD_TIMEOUT", "Package download exceeded the time limit.")); currentResponse?.destroy(failure("DOWNLOAD_TIMEOUT", "Package download exceeded the time limit."));}, timeoutMs);
-	const onAbort = () => {currentRequest?.destroy(cancelled()); currentResponse?.destroy(cancelled());};
+	const stop = error => {
+		if (stopped) return;
+		stopped = error; rejectConnection?.(error); controller.abort();
+		currentRequest?.destroy(); currentResponse?.destroy();
+	};
+	const deadline = setTimeout(() => stop(failure("DOWNLOAD_TIMEOUT", "Package download exceeded the time limit.")), timeoutMs);
+	const onAbort = () => stop(cancelled());
+	const touch = () => {clearTimeout(idleTimer); idleTimer = setTimeout(() => stop(failure("DOWNLOAD_TIMEOUT", "Package download stalled. Check your connection and retry.")), idleTimeoutMs);};
 	signal?.addEventListener("abort", onAbort, {once: true});
 	try {
 		abortCheck(signal);
+		options.progress?.({phase:"connecting", received:0, total:options.expectedBytes || 0, progress:-1});
 		async function connect(address, redirects) {
 			abortCheck(signal);
+			if (stopped) throw stopped;
 			if (!trustedDownloadURL(address)) throw failure("DOWNLOAD_REDIRECT", "Thunderstore redirected to an untrusted download host.");
 			const response = await new Promise((resolve, reject) => {
-				currentRequest = request(address, {headers: {"User-Agent": "TFX-Launcher", Accept: "application/zip, application/octet-stream"}}, resolve);
-				currentRequest.once("error", reject);
-				currentRequest.setTimeout?.(30000, () => currentRequest.destroy(failure("DOWNLOAD_TIMEOUT", "Package download stalled.")));
+				const timer = setTimeout(() => stop(failure("DOWNLOAD_TIMEOUT", "Could not connect to the mod download server. Check your connection and retry.")), connectTimeoutMs);
+				const finish = (error, value) => {clearTimeout(timer); rejectConnection = null; error ? reject(error) : resolve(value);};
+				rejectConnection = error => finish(error);
+				try {
+					currentRequest = request(address, {headers: {"User-Agent": "TFX-Launcher", Accept: "application/zip, application/octet-stream"}}, response => {
+						if (stopped) {response.destroy(); finish(stopped); return;}
+						finish(null, response);
+					});
+					currentRequest.once("error", error => finish(stopped || error));
+					currentRequest.setTimeout?.(idleTimeoutMs, () => stop(failure("DOWNLOAD_TIMEOUT", "Package download stalled. Check your connection and retry.")));
+				} catch (error) {finish(error);}
 			});
 			currentResponse = response;
 			if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
@@ -144,7 +162,7 @@ async function downloadArchive(url, destination, options = {}) {
 				if (redirects >= 4 || typeof response.headers.location !== "string") throw failure("DOWNLOAD_REDIRECT", "Invalid or excessive download redirects.");
 				return connect(new URL(response.headers.location, address).href, redirects + 1);
 			}
-			if (response.statusCode !== 200) {response.resume(); throw failure("DOWNLOAD_HTTP", "Package download returned HTTP " + response.statusCode + ".");}
+			if (response.statusCode !== 200) {response.resume(); throw Object.assign(failure("DOWNLOAD_HTTP", "Package download returned HTTP " + response.statusCode + "."), {statusCode:response.statusCode});}
 			return response;
 		}
 		const response = await connect(url, 0), header = response.headers["content-length"];
@@ -155,14 +173,16 @@ async function downloadArchive(url, destination, options = {}) {
 		if (total && expected && total !== expected) throw failure("DOWNLOAD_LENGTH", "Download size differs from the Thunderstore release metadata.");
 		const report = force => {const now = Date.now(); if (force || now - lastProgress >= 100) {lastProgress = now; options.progress?.({received, total: expected, progress: expected ? Math.floor(received / expected * 100) : -1});}};
 		report(true);
+		touch();
 		const limiter = new Transform({transform(chunk, _encoding, callback) {
+			touch();
 			received += chunk.length;
 			if (signal?.aborted) return callback(cancelled());
 			if (received > maxBytes || (expected && received > expected)) return callback(failure("DOWNLOAD_LIMIT", "The server sent more bytes than permitted."));
 			report(false); callback(null, chunk);
 		}});
 		const output = fs.createWriteStream(destination, {flags: "wx"}); output.once("open", () => {ownsFile = true;});
-		await pipeline(response, limiter, output);
+		await pipeline(response, limiter, output, {signal:controller.signal});
 		abortCheck(signal);
 		if (!response.complete || (expected && received !== expected)) throw failure("DOWNLOAD_TRUNCATED", "The package download was incomplete.");
 		if (!received) throw failure("DOWNLOAD_EMPTY", "The package download was empty.");
@@ -170,8 +190,25 @@ async function downloadArchive(url, destination, options = {}) {
 	} catch (error) {
 		currentRequest?.destroy(); currentResponse?.destroy();
 		if (ownsFile) try {await fsp.unlink(destination);} catch (cleanup) {if (cleanup.code !== "ENOENT") error.cleanupError = cleanup.message;}
-		if (signal?.aborted) throw cancelled(); throw error;
-	} finally {clearTimeout(deadline); signal?.removeEventListener("abort", onAbort);}
+		if (signal?.aborted) throw cancelled(); throw stopped || error;
+	} finally {clearTimeout(deadline); clearTimeout(idleTimer); signal?.removeEventListener("abort", onAbort);}
+}
+async function downloadPackage(url, destination, options = {}) {
+	const candidates = [url];
+	if (trustedDownloadURL(url)) {
+		const match = /^\/package\/download\/([A-Za-z0-9_]+)\/([A-Za-z0-9_]+)\/([^/]+)\/$/.exec(new URL(url).pathname);
+		if (match && versionString(match[3])) for (const host of ["gcdn.thunderstore.io", "ccdn.thunderstore.io"]) candidates.push(`https://${host}/live/repository/packages/${match[1]}-${match[2]}-${match[3]}.zip`);
+	}
+	for (let index=0; index<candidates.length; index++) {
+		abortCheck(options.signal);
+		try {return await downloadArchive(candidates[index], destination, options);}
+		catch (error) {
+			const retryable = ["DOWNLOAD_TIMEOUT", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "NETWORK"].includes(error.code)
+				|| error.code === "DOWNLOAD_HTTP" && (error.statusCode === 429 || error.statusCode >= 500);
+			if (error.cancelled || !retryable || index === candidates.length-1) throw error;
+			options.progress?.({phase:"connecting", received:0, total:options.expectedBytes || 0, progress:-1});
+		}
+	}
 }
 function removePackageSync(root, selection) {
 	if (!identifier(selection.author) || !identifier(selection.package_name) || (selection.version && !versionString(selection.version))) return false;
@@ -258,6 +295,7 @@ function createInstaller(options) {
 		let work, transaction = null, preserved = false;
 		const signal = controller.signal;
 		try {
+			options.progress?.({package_name:key, root_package_name:key, phase:"resolving", progress:-1, received:0});
 			const captured = profile(), root = path.join(captured.profileDirectory, "packages");
 			await guarded(captured); abortCheck(signal);
 			const installed = Object.values(listPackages(root)).map(item => ({author: item.author, package_name: item.package_name, version: item.version}));
@@ -272,7 +310,7 @@ function createInstaller(options) {
 			for (let index = 0; index < plan.packages.length; index++) {
 				const item = plan.packages[index], id = formatName(item.author, item.package_name, item.version), zip = path.join(work, index + ".zip"), folder = path.join(work, "package-" + index);
 				const notify = progress => options.progress?.({package_name: key, root_package_name: key, dependency_name: item.package_name, package_index: index + 1, package_count: plan.packages.length, ...progress});
-				abortCheck(signal); await download(item.downloadUrl, zip, {signal, expectedBytes: item.fileSize, progress: progress => notify({...progress, phase: "downloading"})});
+				abortCheck(signal); await download(item.downloadUrl, zip, {signal, expectedBytes: item.fileSize, progress: progress => notify({...progress, phase: progress.phase || "downloading"})});
 				abortCheck(signal); notify({phase: "extracting", progress: 100}); await fsp.mkdir(folder); await extract(zip, folder); abortCheck(signal);
 				const info = inspectPackage(folder, item); if (![true, "has-plugins"].includes(info.verification)) throw info.error || failure("PACKAGE_CONTENT", "The downloaded release does not contain compatible Northstar mods.");
 				fingerprint(folder); notify({phase: "verifying", progress: 100}); staged.push({item, id, folder, info});
@@ -346,4 +384,4 @@ function createInstaller(options) {
 		get activeCount() {return jobs.size;}
 	};
 }
-module.exports = {createInstaller, inspectPackage, listPackages, formatName, splitName, removePackageSync, trustedDownloadURL, downloadArchive, fingerprint, recoverInterrupted};
+module.exports = {createInstaller, inspectPackage, listPackages, formatName, splitName, removePackageSync, trustedDownloadURL, downloadArchive, downloadPackage, fingerprint, recoverInterrupted};

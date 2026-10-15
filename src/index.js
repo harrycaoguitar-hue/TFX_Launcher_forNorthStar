@@ -148,6 +148,7 @@ function start() {
 		userAgent: "TFX/" + require("../package.json").version,
 	})
 	require("./modules/mods");
+	require("./modules/packages");
 	require("./modules/update");
 	require("./modules/version");
 	require("./modules/ipc");

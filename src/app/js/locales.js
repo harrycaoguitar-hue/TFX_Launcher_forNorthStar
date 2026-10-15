@@ -1,6 +1,10 @@
 /* Product copy is kept separate from rendering and from user package content. */
 window.VyraLocales = {
   messages: {
+    "browser.loadMore":["加载更多…","Load more…"],
+    "browser.allLoaded":["已显示全部模组。","All mods loaded."],
+    "browser.resolving":["正在检查依赖…","Checking dependencies…"],
+    "browser.connecting":["正在连接下载…","Connecting to download…"],
     "mods.changedExternally":["已安装的模组已被其他程序修改，请刷新后重试。未覆盖当前文件。","An installed mod was changed by another program. Refresh and retry. Current files were preserved."],
     "mods.confirmToggleAll":["切换所有可管理模组的启用状态？核心组件与仅包含插件的安装包保持原状。","Toggle all controllable mods? Core components and plugin-only packages will keep their current state."],
     "mods.confirmRemoveAll":["移除全部用户模组？北极星核心组件会保留；移除后需要重新安装这些模组。","Remove all user mods? Northstar core components will be kept. Removed mods will need to be installed again."],
@@ -23,7 +27,7 @@ window.VyraLocales = {
     'settings.restore.failure':['未能保存，原设置已保留。请重试。','Could not save. Your previous settings are unchanged. Try again.'],
     'settings.restartOnly':['重新启动 TFX。','Restart TFX.'],
     'settings.previewSaveHint':['取消只撤销未保存的预览；恢复默认会立即保存。','Cancel discards unsaved previews. Restoring defaults saves immediately.'],
-    'app.preview':['1.0.1','1.0.1'],
+    'app.preview':['1.0.2','1.0.2'],
     'appUpdate.title':['应用更新','App updates'],
     'appUpdate.ready':['从 GitHub Releases 检查 TFX 的正式版本。','Check GitHub Releases for a stable TFX release.'],
     'appUpdate.check':['检查更新','Check for updates'],

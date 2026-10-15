@@ -1,6 +1,9 @@
 {
   "locale": "zh-TW",
   "strings": {
+    "All mods loaded.": "已顯示全部模組。",
+    "Checking dependencies…": "正在檢查相依項目…",
+    "Connecting to download…": "正在連線下載…",
     "$1 DDS skin files installed. Backups saved.": "已安裝 $1 個 DDS 皮膚檔案，並已儲存備份。",
     "$1 DDS skin files installed; $2 remnants of the previous skin removed. Backups saved.": "已安裝 $1 個 DDS 皮膚檔案，清除 $2 處舊皮膚殘留，並已儲存備份。",
     "$1 VTF / material / model resources validated": "$1 個 VTF / 材質 / 模型資源已通過驗證",

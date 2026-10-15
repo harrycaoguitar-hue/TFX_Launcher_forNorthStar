@@ -1,5 +1,26 @@
 /* Action labels always contrast with the selected theme's solid accent.
    Old bg-blue utilities must not select both the fill and foreground. */
+#browserEntries .message #loadmore {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-width:140px;
+  min-height:38px;
+  padding:9px 18px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:rgba(var(--theme-ink-rgb),.045);
+  color:var(--ink);
+  font-size:12px;
+  font-weight:600;
+}
+#browserEntries .message #loadmore:hover {
+  background:rgba(var(--theme-accent-rgb),.1);
+  border-color:rgba(var(--theme-accent-rgb),.25);
+}
+#browserEntries .message #loadmore>.nv-icon {margin:0}
+#browserEntries .message #loadmore>span {color:inherit}
 #browserEntries .el .browser-card-actions .install,
 #browser .browser-detail-install {
   background:var(--cyan)!important;

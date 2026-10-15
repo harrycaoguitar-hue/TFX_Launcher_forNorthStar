@@ -1,6 +1,9 @@
 {
   "locale": "fr-FR",
   "strings": {
+    "All mods loaded.": "Tous les mods sont chargés.",
+    "Checking dependencies…": "Vérification des dépendances…",
+    "Connecting to download…": "Connexion au téléchargement…",
     "$1 DDS skin files installed. Backups saved.": "$1 fichiers de skin DDS installés. Sauvegardes enregistrées.",
     "$1 DDS skin files installed; $2 remnants of the previous skin removed. Backups saved.": "$1 fichiers de skin DDS installés ; $2 restes du skin précédent supprimés. Sauvegardes enregistrées.",
     "$1 VTF / material / model resources validated": "$1 ressources VTF / matériau / modèle validées",

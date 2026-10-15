@@ -108,7 +108,7 @@ function normalize(value) {
     if (ownsJob) {
       if (Number.isFinite(active.progress) && active.progress >= 0) button.style.setProperty("--progress", Math.min(100, active.progress) + "%");
       else button.style.removeProperty("--progress");
-      const phase = {extracting:"browser.preparing", verifying:"browser.checkingPackage", installing:"browser.installing"}[active.phase];
+      const phase = {resolving:"browser.resolving", connecting:"browser.connecting", extracting:"browser.preparing", verifying:"browser.checkingPackage", installing:"browser.installing"}[active.phase];
       const status = phase ? copy(phase, "Installing") : legacy("browser.downloading");
       const amount = active.progress >= 0 ? Math.min(100, active.progress) + "%" : formatBytes(active.received);
       labelButton(button, active.phase && active.phase !== "downloading" ? status : copy("browser.downloadProgress", "Downloading {amount}").replaceAll("{amount}",amount), "close");
@@ -136,7 +136,7 @@ function normalize(value) {
       return false;
     }
     if (!urlAllowed(model.download, "download")) return false;
-    state.active = {id:model.id, name:model.name, progress:-1, received:0, phase:"downloading", cancelling:false};
+    state.active = {id:model.id, name:model.name, progress:-1, received:0, phase:"resolving", cancelling:false};
     setButtons(false);
     refreshActions();
     ipcRenderer.send("install-from-url", model.download, model.owner, model.name, model.version);
@@ -185,12 +185,18 @@ function normalize(value) {
     if (!state.results.length) return;
     const footer = element("div", "message");
     if (state.shown < state.results.length) {
-      const next = element("button", "", legacy("browser.load_more"));
+      const next = element("button", "fold-button compact browser-load-more");
       next.id = "loadmore";
       next.type = "button";
+      const label = element("span", "", copy("browser.loadMore", legacy("browser.load_more")));
+      label.dataset.i18n = "browser.loadMore";
+      next.append(label);
       next.addEventListener("click", appendPage);
       footer.append(next);
-    } else footer.textContent = legacy("browser.endoflist");
+    } else {
+      footer.dataset.i18n = "browser.allLoaded";
+      footer.textContent = copy("browser.allLoaded", legacy("browser.end_of_list"));
+    }
     entries.append(footer);
   }
 
