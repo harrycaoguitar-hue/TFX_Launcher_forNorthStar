@@ -20,6 +20,7 @@
   let pollTimer = null;
   let requestCount = 0;
   let currentActive = false;
+  let changingRegion = false;
   const words = {
     'zh-CN': {
       servers:'服务器', players:'玩家', online:'人在线', lastKnown:'上次记录', loading:'正在获取服务器…', waiting:'等待刷新', empty:'当前没有公开服务器',
@@ -173,12 +174,26 @@
     if(!visible){currentActive=false;stopPolling();return;}
     if(!currentActive){currentActive=true;render();refresh(false);}
   }
-  function chooseRegion(next){
-    if(!['cn','global'].includes(next)||next===region)return;
-    region=next;selected='';settings.northstarRegion=region;
-    ipcRenderer.send('save-settings',{northstarRegion:region});
-    window.dispatchEvent(new CustomEvent('vyra-region-changed',{detail:{region}}));
-    render();refresh(false);
+  async function chooseRegion(next){
+    if(!['cn','global'].includes(next)||next===region||changingRegion||Settings.saving)return;
+    changingRegion=true;
+    for(const group of document.querySelectorAll('.servers-region')) group.setAttribute('aria-busy','true');
+    try {
+      const response=await Settings.savePatch({northstarRegion:next});
+      if(!response.ok || response.settings.northstarRegion!==next){
+        const reason=Settings.modStateError(response.code,'settings.regionChangeFailed');
+        new Toast({key:'server-region-change',scheme:'error',title:I18n.t('settings.regionChangeFailed'),description:I18n.t(reason),timeout:7000});
+        return;
+      }
+      region=next;selected='';
+      window.dispatchEvent(new CustomEvent('vyra-region-changed',{detail:{region}}));
+      render();refresh(false);
+    } finally {
+      changingRegion=false;
+      region=settings.northstarRegion==='global'?'global':'cn';
+      for(const group of document.querySelectorAll('.servers-region')) group.removeAttribute('aria-busy');
+      render();
+    }
   }
   for(const button of root.querySelectorAll('[data-server-region]'))button.addEventListener('click',()=>chooseRegion(button.dataset.serverRegion));
   for(const button of networkButtons)button.addEventListener('click',()=>chooseRegion(button.dataset.launchRegion));
@@ -190,7 +205,7 @@
     region=settings.northstarRegion==='global'?'global':'cn';selected='';render();refresh(false);
   });
   ipcRenderer.on('changed-settings',(_event,value)=>{
-    if(value && Object.prototype.hasOwnProperty.call(value,'northstarRegion')){
+    if(!changingRegion && value && Object.prototype.hasOwnProperty.call(value,'northstarRegion')){
       region=settings.northstarRegion==='global'?'global':'cn';selected='';render();refresh(false);
     }
   });

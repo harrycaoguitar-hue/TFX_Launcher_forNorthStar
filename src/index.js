@@ -71,7 +71,8 @@ function start() {
 		minWidth: 1100,
 		minHeight: 720,
 		title: "TFX Launcher",
-		backgroundColor: "#0b1220",
+		backgroundColor: "#00000000",
+		transparent: true,
 
 		// Hides the window initially, it'll be shown when the DOM is
 		// loaded, as to not cause visual issues.
@@ -109,8 +110,8 @@ function start() {
 		requestedSize = {width: fitWidth, height: fitHeight};
 	}
 
-	// Keep the native window rectangular. Windows region clipping introduces
-	// non-client frame offsets and repeated size drift at display scaling.
+	// The renderer clips transparent corners without changing the native region
+	// or window bounds. Movement keeps the same physical-pixel-aligned path.
 	require("./modules/window-move")(win, requestedSize);
 
 	// makes sending things to the renderer a little more readable
@@ -156,6 +157,8 @@ function start() {
 	require("./modules/system_dns");
 	require("./modules/launch");
 	const dds = require("./modules/dds"), vtf = require("./modules/vtf");
+	require("./modules/skin-import").register({...require("electron"),dds,vtf,mods:require("./modules/mods")});
+	require("./modules/weapon-library").register({...require("electron"),dds,vtf,mods:require("./modules/mods"),settings:require("./modules/settings")});
 	require("./modules/skin-switch").installEngines({dds,vtf,baseDir:path.join(app.getPath("appData"),"fold-launcher","skin-switch")});
 	require("./modules/server-list").register(require("electron").ipcMain);
 	require("./modules/launcher-update").register(require("electron"));

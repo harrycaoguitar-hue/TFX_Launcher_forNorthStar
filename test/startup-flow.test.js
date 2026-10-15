@@ -6,13 +6,13 @@ test('local document begins loading before feature imports and startup IPC waits
  const order=[],app=new EventEmitter(),contents=new EventEmitter();let window;
  Object.assign(app,{name:'tfx',setPath(){},getPath(){return 'D:/fixture';},requestSingleInstanceLock(){return true;},commandLine:{appendSwitch(){}},whenReady(){return Promise.resolve();},quit(){}});
  Object.assign(contents,{session:{setUserAgent(){}},getUserAgent(){return 'fixture';},isDestroyed(){return false;},setWindowOpenHandler(){},send(){},openDevTools(){}});
- const features=['./modules/mods','./modules/update','./modules/version','./modules/launch','./modules/dds','./modules/vtf','./modules/skin-switch','./modules/server-list','./modules/launcher-update'];
+ const features=['./modules/mods','./modules/update','./modules/version','./modules/launch','./modules/dds','./modules/vtf','./modules/skin-import','./modules/weapon-library','./modules/skin-switch','./modules/server-list','./modules/launcher-update'];
  class Window extends EventEmitter{constructor(){super();window=this;this.webContents=contents;order.push('window');}isDestroyed(){return false;}removeMenu(){}loadFile(){order.push('load-file');queueMicrotask(()=>{for(const feature of features)assert(order.includes(feature),'IPC reached unregistered feature '+feature);order.push('renderer-ipc');});}}
  const settings=()=>({uiLanguage:'en-US',gamepath:'D:/fixture/game'}),file=path.join(__dirname,'../src/index.js');
  vm.runInNewContext(fs.readFileSync(file,'utf8'),{__dirname:path.dirname(file),process:{argv:[],chdir(){},on(){}},setTimeout,require:id=>{
   if(id==='path')return path;if(id==='electron')return{app,BrowserWindow:Window,screen:{getPrimaryDisplay(){return{workAreaSize:{width:2000,height:1200}};}},ipcMain:{}};
   if(id==='fs')return{existsSync(){return false;}};if(id==='./modules/settings')return settings;if(id==='./locale')return{normalize:v=>v};if(id==='./lang')return{defaultLocale:'en-US'};if(id==='./modules/console')return{error(){}};if(id==='./modules/window-move')return()=>{};if(id==='./win')return{set(){}};if(id==='../package.json')return{version:'1.0.1'};
-  order.push(id);if(id==='./modules/skin-switch')return{installEngines(){order.push('guards-installed');}};if(id==='./modules/server-list'||id==='./modules/launcher-update')return{register(){}};return{};
+  order.push(id);if(id==='./modules/skin-switch')return{installEngines(){order.push('guards-installed');}};if(id==='./modules/skin-import'||id==='./modules/weapon-library'||id==='./modules/server-list'||id==='./modules/launcher-update')return{register(){}};return{};
  }});await tick();assert(window);assert(order.indexOf('load-file')<order.indexOf('./modules/dds'));assert(order.indexOf('guards-installed')<order.indexOf('renderer-ipc'));assert.equal(contents.listenerCount('dom-ready'),1);
 });
 

@@ -2,7 +2,7 @@
 const path = require("path");
 const fs = require("fs");
 const {spawn, execFile} = require("child_process");
-const {app, ipcMain} = require("electron");
+const {app, ipcMain, dialog} = require("electron");
 const lang = require("../lang");
 const settings = require("./settings");
 const console = require("./console");
@@ -18,22 +18,52 @@ const modState = require("./mod-enabled-state");
 const modCompatibility = require("./mod-compatibility");
 const {NorthstarReadiness} = require("./northstar-readiness");
 const ea = require("./ea-handoff");
+const {LaunchDiagnostics} = require("./launch-diagnostics");
+const diagnosticExport = require("./diagnostic-export");
 
 let launching = false, latestDiagnostic = null, activeReadiness = null;
 function send(channel, result) {try {const window = win(); if (!window.isDestroyed?.()) window.send(channel, result);} catch (error) {console.error(error.message || String(error));}}
+let pendingDiagnostic = null, diagnosticWrite = null;
+const diagnosticFilename = () => path.join(app.getPath("userData"), "launch-diagnostics.json");
+function persistDiagnostic(report) {
+  pendingDiagnostic = JSON.stringify(report, null, 2) + "\n";
+  if (diagnosticWrite) return;
+  diagnosticWrite = (async () => {
+    try {
+      const filename = diagnosticFilename(); await fs.promises.mkdir(path.dirname(filename), {recursive:true});
+      while (pendingDiagnostic !== null) {
+        const json = pendingDiagnostic; pendingDiagnostic = null;
+        await fs.promises.writeFile(filename + ".tmp", json, {encoding:"utf8", mode:0o600});
+        await fs.promises.rename(filename + ".tmp", filename);
+      }
+    } catch (_) {pendingDiagnostic = null;}
+    finally {diagnosticWrite = null;}
+  })();
+}
+const diagnostics = new LaunchDiagnostics({appVersion:app.getVersion?.() || require("../../package.json").version, onChange:report => send("launch-diagnostic", report), persist:persistDiagnostic});
+try {
+  const filename = diagnosticFilename();
+  if (fs.existsSync(filename)) {
+    const input = fs.statSync(filename).size <= 32768 ? JSON.parse(fs.readFileSync(filename, "utf8")) : null;
+    const restored = diagnostics.load(input);
+    // Replace the previous private, free-form diagnostic schema with the
+    // bounded structured schema. A prior pending launch is not still active.
+    if (restored?.state === "starting") {
+      restored.state = "failed"; restored.outcome = {code:"unknown", causeKnown:false, evidenceCode:null, actions:["retry", "issue"]};
+      for (const stage of restored.stages) if (["active", "pending"].includes(stage.status)) stage.status = "unconfirmed";
+      diagnostics.load(restored);
+    }
+    persistDiagnostic(diagnostics.report());
+  }
+} catch (_) { /* An unreadable old diagnostic must never block startup. */ }
+diagnosticExport.register({ipcMain, dialog, getWindow:win, getReport:() => diagnostics.report()});
 function diagnose(record, change) {
   Object.assign(record, change, {updatedAt: new Date().toISOString()});
-  if (latestDiagnostic !== record) return;
-  try {
-    const directory = app.getPath("userData"), filename = path.join(directory, "launch-diagnostics.json");
-    fs.mkdirSync(directory, {recursive: true});
-    const saved = {...record, root: record.root?.slice(0, 4096), args: record.args?.slice(0, 64).map(value => value.slice(0, 512)), error: record.error?.slice(0, 2000)};
-    fs.writeFileSync(filename + ".tmp", JSON.stringify(saved, null, 2), "utf8");
-    fs.renameSync(filename + ".tmp", filename);
-  } catch (error) {console.warn("Launch diagnostics could not be saved:", error.message);}
+  // Full values stay in this short-lived internal launch record. Export and
+  // persistence exclusively use LaunchDiagnostics' explicit structured schema.
 }
 const confirmation = new LaunchConfirmation({speedUp: until => running.speedUp(until), refresh: () => running.snapshot()});
-running.onSnapshot(value => {probeReadiness(); confirmation.observe(value);});
+running.onSnapshot(value => {probeReadiness(); const session = confirmation.current; confirmation.observe(value); diagnostics.observe(value, session);});
 
 function readTail(filename) {
   const fd = fs.openSync(filename, "r");
@@ -61,6 +91,7 @@ function probeReadiness() {
   try {
     if (/Launching the game/i.test(readTail(probe.startupLog))) {
       confirmation.entered(probe.session);
+      diagnostics.stage("northstar", "active");
     }
     const next = latestGameLog(probe.profileDirectory), prior = probe.previousLog;
     if (!next || next.modified < probe.startedAt || (prior && next.filename === prior.filename && next.modified === prior.modified && next.size === prior.size)) return;
@@ -81,6 +112,8 @@ function probeReadiness() {
       confirmation.fail(probe.session, state.error);
     } else if (state?.ready) {
       confirmation.ready(probe.session);
+      diagnostics.stage("northstar", "observed");
+      diagnostics.stage("confirmation", "active");
       diagnose(probe.record, {gameStage: "northstar-menu", runtimeCore: state.core, readyAt: new Date().toISOString()});
     }
   } catch (_) { /* A process can hold its log briefly; retry next snapshot. */ }
@@ -142,13 +175,14 @@ function prepareLegacyConsole(record) {
 
 ipcMain.on("launch-ns", () => {void launch("northstar");});
 ipcMain.on("launch-vanilla", () => {void launch("vanilla");});
+function launchError(code, message) {return Object.assign(Error(message), {code});}
 
 function preflight(conf, gameVersion, prepared = false) {
   const root = findgame.validateGamePath(conf.gamepath);
-  if (!root) throw Error("游戏目录已失效或缺少 Titanfall2.exe，请重新选择游戏安装目录。");
+  if (!root) throw launchError("GAME_DIRECTORY_INVALID", "游戏目录已失效或缺少 Titanfall2.exe，请重新选择游戏安装目录。");
   const directory = path.join(root, "r2");
   try {if (!fs.statSync(directory).isDirectory()) throw Error();}
-  catch (_) {throw Error("游戏目录缺少 r2 资源目录，请验证游戏文件后再启动。");}
+  catch (_) {throw launchError("GAME_ASSETS_MISSING", "游戏目录缺少 r2 资源目录，请验证游戏文件后再启动。");}
   const executable = gameVersion === "vanilla" ? "Titanfall2.exe" : "NorthstarLauncher.exe";
   const args = gameVersion === "northstar" ? network.argumentsFor(splitArguments(conf.nsargs || ""), conf.northstarRegion) : splitArguments(conf.nsargs || "");
   const profileDirectory = gameVersion === "northstar" ? network.resolveProfile(root, args) : null;
@@ -156,7 +190,7 @@ function preflight(conf, gameVersion, prepared = false) {
   const required = gameVersion === "vanilla" ? [executable] : ["Titanfall2.exe", "bin/x64_retail/launcher.dll", "bin/x64_retail/tier0.dll", ...(prepared ? [executable,dll] : [])];
   for (const name of required) {
     try {if (!fs.statSync(path.join(root, ...name.split("/"))).isFile()) throw Error(); fs.accessSync(path.join(root, ...name.split("/")), fs.constants.R_OK);}
-    catch (_) {throw Error("缺少或无法读取 " + name + (gameVersion === "vanilla" ? "，请验证游戏文件。" : "，请在开始游戏页面检查或重新安装北极星客户端。"));}
+    catch (_) {throw launchError("GAME_FILE_UNREADABLE", "缺少或无法读取 " + name + (gameVersion === "vanilla" ? "，请验证游戏文件。" : "，请在开始游戏页面检查或重新安装北极星客户端。"));}
   }
   const quietConsole = gameVersion === "northstar" && supportsQuietConsole(root, profileDirectory);
   if (quietConsole && !args.includes("-noallocconsole")) args.push("-noallocconsole");
@@ -167,7 +201,7 @@ async function baselineSnapshot() {
     const value = await running.snapshot();
     if (value?.ok) return value;
   }
-  throw Error("无法读取 Windows 游戏进程，已重试三次。请稍后重试启动。");
+  throw launchError("PROCESS_QUERY_FAILED", "无法读取 Windows 游戏进程，已重试三次。请稍后重试启动。");
 }
 
 async function launch(gameVersion) {
@@ -176,39 +210,46 @@ async function launch(gameVersion) {
   launching = true;
   const record = {version: 1, gameVersion, startedAt: new Date().toISOString(), state: "starting", childExit: null, confirmation: null, error: null};
   latestDiagnostic = record;
+  diagnostics.begin(gameVersion);
   diagnose(record, {});
   send("launch-status", {state: "starting", gameVersion});
   let session = null, consoleController = null, clientPreparation = false;
   try {
     const result = await gate.run("launch", async () => {
-      if (require("./dds").busy) throw Error("DDS 安装或恢复正在进行，请完成后再启动游戏");
+      if (require("./dds").busy) throw launchError("SKIN_OPERATION_BUSY", "DDS 安装或恢复正在进行，请完成后再启动游戏");
       const conf = {...settings()};
+      diagnostics.update({region:network.normalize(conf.northstarRegion)});
       let plan = preflight(conf, gameVersion);
       let baseline = await baselineSnapshot();
-      if (hasGame(baseline)) throw Error("游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏。");
+      if (hasGame(baseline)) throw launchError("GAME_ALREADY_RUNNING", "游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏。");
+      diagnostics.stage("preflight", "observed");
       // A cross-format skin switch can touch both the model index and DDS data.
       // Never start a game against an interrupted transaction between them.
+      diagnostics.stage("skins", "active");
       await require("./skin-switch").getActive()?.assertReady(plan.root);
       clientPreparation = true;
       const selectionGuard=()=>{
         const current=settings();
-        if(current.gamepath!==conf.gamepath||current.nsargs!==conf.nsargs||network.normalize(current.northstarRegion)!==network.normalize(conf.northstarRegion))throw Error("客户端选择或游戏目录已改变，请重新启动。");
+        if(current.gamepath!==conf.gamepath||current.nsargs!==conf.nsargs||current.independentServerMods!==conf.independentServerMods||network.normalize(current.northstarRegion)!==network.normalize(conf.northstarRegion))throw launchError("SELECTION_CHANGED", "客户端选择或游戏目录已改变，请重新启动。");
       };
       const compatibilityGuard = async () => {
         const stopped = await baselineSnapshot();
-        if (hasGame(stopped)) throw Error("游戏已由其他程序启动，请先退出游戏后重试。");
+        if (hasGame(stopped)) throw launchError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请先退出游戏后重试。");
         selectionGuard();
       };
       let compatibility;
       if (gameVersion === "northstar") {
+        diagnostics.stage("client", "active");
         diagnose(record, {clientPreparation: "checking", region: network.normalize(conf.northstarRegion)});
         const installed = await clients.ensure({conf, allowInstall: false, guard: selectionGuard});
         diagnose(record, {clientPreparation: "ready", client: installed});
+        diagnostics.update({clientVersion:installed.version});
         plan = preflight(conf, gameVersion, true);
-        const modConfiguration = await modState.prepare(plan.profileDirectory, network.normalize(conf.northstarRegion), {guard: compatibilityGuard});
+        const modConfiguration = await (conf.independentServerMods ? require("./server-mod-profiles") : modState).prepare(plan.profileDirectory, network.normalize(conf.northstarRegion), {guard: compatibilityGuard});
         diagnose(record, {modConfiguration});
         compatibility = await modCompatibility.prepare(plan.profileDirectory, network.normalize(conf.northstarRegion), {clientVersion: installed.version, guard: compatibilityGuard});
         ipcMain.emit("gui-getmods");
+        diagnostics.stage("client", "observed");
       } else {
         await clients.recover(conf);
         const profileDirectory = network.resolveProfile(plan.root, splitArguments(conf.nsargs || ""));
@@ -220,29 +261,34 @@ async function launch(gameVersion) {
       }
       clientPreparation = false;
       diagnose(record, {root: plan.root, executable: plan.executable, args: plan.args, consoleMode: gameVersion === "northstar" ? plan.quietConsole ? "official-noallocconsole" : "owned-console-only" : "game-default"});
+      diagnostics.stage("skins", "active");
       const guard = await protection.beforeLaunch(plan.root);
+      diagnostics.stage("skins", "observed");
       send("launch-guard-result", guard);
       // Protection may await disk IO. Recheck before creating a process so an
       // external launch cannot slip through the renderer's older state.
       baseline = await baselineSnapshot();
-      if (hasGame(baseline)) throw Error("游戏已由其他程序启动，请等待启动完成或先退出游戏。");
+      if (hasGame(baseline)) throw launchError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请等待启动完成或先退出游戏。");
       selectionGuard();
       // Console capability has already been checked against the selected DLL.
       // Its owned helper may initialize alongside EA, without touching game
       // files or spawning the game. Wait for both before the final fresh guard;
       // collect failures so a prepared helper always reaches the cleanup path.
+      diagnostics.stage("ea", "active");
       const preparations = await Promise.allSettled([ea.prepare({snapshot: () => running.snapshot(), initial: baseline, guard: selectionGuard, onStage(stage, detail) {
         diagnose(record, {eaPreparation: {stage, ...detail}});
+        if (stage === "ready") diagnostics.stage("ea", "observed");
         if (stage !== "ready") send("launch-status", {state: "starting", gameVersion, phase: stage === "starting" ? "prepare-ea" : "wait-ea"});
       }}), gameVersion === "northstar" && !plan.quietConsole ? prepareLegacyConsole(record) : Promise.resolve(null)]);
       consoleController = preparations[1].status === "fulfilled" ? preparations[1].value : null;
       if (preparations[0].status === "rejected") throw preparations[0].reason;
       if (preparations[1].status === "rejected") throw preparations[1].reason;
       const platform = preparations[0].value;
+      diagnostics.stage("ea", "observed");
       // The platform wait may open EA's login/update UI. Repeat all guards
       // before spawning the selected game; no vanilla fallback is permitted.
       baseline = await baselineSnapshot();
-      if (hasGame(baseline)) throw Error("游戏已由其他程序启动，请等待启动完成或先退出游戏。");
+      if (hasGame(baseline)) throw launchError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请等待启动完成或先退出游戏。");
       selectionGuard();
       if (gameVersion === "northstar") modState.assertReady(plan.profileDirectory, network.normalize(conf.northstarRegion));
       let attempt = 0;
@@ -251,6 +297,8 @@ async function launch(gameVersion) {
         const startup = createStartupLog();
         const ownedSession = session;
         attempt++;
+        diagnostics.update({attempts:attempt});
+        diagnostics.stage("spawn", "active");
         diagnose(record, {startupLog: startup.filename, windowsHide: false, launchAttempt: attempt});
         send("launch-status", {state: "starting", gameVersion, phase: "wait-game"});
         activeReadiness = gameVersion === "northstar" ? {session: ownedSession, record, root: plan.root, profileDirectory: plan.profileDirectory, startupLog: startup.filename, previousLog, startedAt: Date.now(), logFilename: null, logOffset: 0, runtime: new NorthstarReadiness()} : null;
@@ -261,6 +309,7 @@ async function launch(gameVersion) {
         const child = spawn(path.join(plan.root, plan.executable), plan.args, {cwd: plan.root, windowsHide: false, detached: true, stdio: ["ignore", startup.fd, startup.fd]});
         child.once("spawn", () => {
           confirmation.spawned(ownedSession, child.pid);
+          if (latestDiagnostic === record) {diagnostics.stage("spawn", "observed"); diagnostics.stage("game", "active");}
           diagnose(record, {spawnedAt: new Date().toISOString(), launcherPid: child.pid || null});
           consoleController?.bind(child.pid);
           child.unref();
@@ -306,21 +355,25 @@ async function launch(gameVersion) {
       spawnSelected();
       const confirmed = await session.promise;
       if (!confirmed.ok) throw Object.assign(Error(confirmed.error), confirmed.code ? {code:confirmed.code} : {});
+      diagnostics.finish();
       diagnose(record, {state: "confirmed", confirmedAt: new Date().toISOString(), confirmation: {pid: confirmed.pid, image: confirmed.image}});
       send("launch-status", {state: "confirmed", gameVersion, pid: confirmed.pid});
       return confirmed;
     });
     // Release the DDS gate before optional app shutdown; manual Exit can also
     // close EA App, so use the independent application quit path here.
+    await diagnosticWrite;
     if (settings().exitAfterLaunch === true) app.quit();
     return result;
   } catch (error) {
     if (session) confirmation.fail(session, error);
+    diagnostics.finish(error);
     const result = {ok: false, error: error.message || String(error), ...(error.code ? {code: error.code} : {})};
     diagnose(record, {state: "failed", failedAt: new Date().toISOString(), error: result.error});
     console.error(result.error);
     send("launch-status", {state: "failed", gameVersion, error: result.error, ...(result.code ? {code: result.code} : {})});
     if (clientPreparation) send("launch-guard-result", {...result,scope:"client"});
+    await diagnosticWrite;
     return result;
   } finally {consoleController?.cancel(); activeReadiness = null; launching = false;}
 }

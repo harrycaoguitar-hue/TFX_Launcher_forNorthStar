@@ -208,6 +208,35 @@ function treeDigest(root) {
   }
   visit(root,'',0);return digest.digest('hex');
 }
+// Hash at most 64 KiB between I/O yields. Large skin Mods must not freeze the
+// Electron main thread while preserving byte-for-byte conflict detection.
+async function treeDigestAsync(root) {
+  regular(root,true);const digest=crypto.createHash('sha256');let count=0,total=0;
+  const identity=stat=>`${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
+  async function visit(directory,relative,depth){
+    if(depth>32)fail('limit',messages.limit);
+    const original=await fs.promises.lstat(directory);
+    if(original.isSymbolicLink()||!original.isDirectory())fail('unsafe',messages.unsafe);
+    const entries=(await fs.promises.readdir(directory,{withFileTypes:true})).sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0);
+    for(const entry of entries){
+      const file=path.join(directory,entry.name),key=relative?relative+'/'+entry.name:entry.name,stat=await fs.promises.lstat(file);
+      partsOf(entry.name);if(stat.isSymbolicLink())fail('unsafe',messages.unsafe);
+      digest.update(JSON.stringify([key,stat.isDirectory()?'directory':'file'])+'\n');
+      if(stat.isDirectory())await visit(file,key,depth+1);
+      else if(stat.isFile()){
+        if(++count>LIMIT_FILES||(total+=stat.size)>LIMIT_BYTES)fail('limit',messages.limit);
+        const handle=await fs.promises.open(file,'r'),buffer=Buffer.allocUnsafe(64*1024);let offset=0;
+        try{
+          const before=await handle.stat();if(identity(before)!==identity(stat))fail('unsafe',messages.unsafe);
+          while(offset<before.size){const {bytesRead}=await handle.read(buffer,0,Math.min(buffer.length,before.size-offset),offset);if(!bytesRead)fail('unsafe',messages.unsafe);digest.update(buffer.subarray(0,bytesRead));offset+=bytesRead;}
+          const after=await handle.stat(),current=await fs.promises.lstat(file);if(current.isSymbolicLink()||identity(after)!==identity(before)||identity(current)!==identity(before))fail('unsafe',messages.unsafe);
+        }finally{await handle.close();}
+      }else fail('unsafe',messages.unsafe);
+    }
+    const current=await fs.promises.lstat(directory);if(current.isSymbolicLink()||identity(current)!==identity(original))fail('unsafe',messages.unsafe);
+  }
+  await visit(root,'',0);return digest.digest('hex');
+}
 function modDefinition(file) {
 	const data=readDefinitionJson(file);
 	if(!data || Array.isArray(data) || typeof data.Name!=="string" || !data.Name.trim() || /[\u0000-\u001f]/u.test(data.Name) || ("Version" in data && (typeof data.Version!=="string" || !data.Version.trim()))) fail("definition",messages.definition);
@@ -227,6 +256,34 @@ function findManifest(directory,root) {
 		directory=path.dirname(directory);
 	}
 }
+// Read-only validation is shared by the unified importer and the transactional
+// installer. A package containing mod.json is always a Mod, including skins
+// shipped as Mods; invalid definitions never fall back to a texture installer.
+async function inspectModDirectory(root, options={}) {
+	regular(root,true);
+	const scan=await scanTree(root);
+	if(!scan.definitions.length) fail(scan.textures.length?"skin":"format",scan.textures.length?messages.skin:messages.format);
+	if(scan.definitions.length>128) fail("limit",messages.limit);
+	const plan=[],names=new Set(),destinations=new Set();
+	for(const file of scan.definitions) {
+		const definition=modDefinition(file), directory=path.dirname(file);
+		if(["Northstar.Client","Northstar.Custom","Northstar.CustomServers"].some(name=>name.toLowerCase()===definition.Name.toLowerCase())) fail("definition","北极星核心组件请通过客户端安装或修复，不能作为外部模组覆盖。");
+		if(scan.definitions.some(other=>other!==file && inside(directory,path.dirname(other)))) fail("definition","模组文件夹内嵌套了另一个 mod.json，请将模组拆分为独立文件夹后导入。");
+		if(names.has(definition.Name.toLowerCase())) fail("duplicate",messages.duplicate);
+		names.add(definition.Name.toLowerCase());
+		const manifest=findManifest(directory,root);
+		let folder=directory===root ? (options.sourceName||path.basename(root)) : path.basename(directory);
+		if(directory===root || folder.toLowerCase()==="mods") folder=options.destname || (manifest && manifest.data.name) || folder;
+		if(["Northstar.Client","Northstar.Custom","Northstar.CustomServers"].some(name=>name.toLowerCase()===folder.toLowerCase())) fail("definition","模组目标目录与北极星核心组件重名，无法导入。");
+		partsOf(folder);
+		if(folder.includes("/") || folder.includes("\\")) fail("unsafe",messages.unsafe);
+		let candidate=folder,number=2;
+		while(destinations.has(candidate.toLowerCase())) candidate=folder+" ("+(number++)+")";
+		destinations.add(candidate.toLowerCase());
+		plan.push({directory,folder:candidate,definition,manifest});
+	}
+	return {plan,names:plan.map(item=>item.definition.Name),modCount:plan.length};
+}
 async function importLocalMod(source, options={}) {
 	if(typeof source!=="string" || !path.isAbsolute(source) || !fs.existsSync(source)) fail("missing",messages.missing);
 	const sourceStat=fs.lstatSync(source);
@@ -242,36 +299,19 @@ async function importLocalMod(source, options={}) {
 		for(const part of path.relative(component,destinationRoot).split(path.sep).filter(Boolean)){component=path.join(component,part);if(fs.existsSync(component)) regular(component,true);}
 		if(transaction && fs.existsSync(transaction)) regular(transaction,true);
 	}
-	await fs.ensureDir(options.cacheRoot);
-	const work=await fs.mkdtemp(path.join(options.cacheRoot,"import-")), snapshot=path.join(work,"source");
+	const prepared=options.preparedSnapshot===true&&sourceStat.isDirectory();
+	if(!prepared)await fs.ensureDir(options.cacheRoot);
+	const work=prepared?null:await fs.mkdtemp(path.join(options.cacheRoot,"import-")), snapshot=prepared?source:path.join(work,"source");
 	let transaction=null, keepTransaction=false;
 	try {
-		await fs.ensureDir(snapshot);
-		if(sourceStat.isDirectory()) {
+		if(!prepared)await fs.ensureDir(snapshot);
+		if(prepared)await scanTree(snapshot);
+		else if(sourceStat.isDirectory()) {
 			await scanTree(source);
 			await fs.copy(source,snapshot,{dereference:false,errorOnExist:true,overwrite:false});
 		} else await extractZip(source,snapshot);
-		const scan=await scanTree(snapshot);
-		if(!scan.definitions.length) fail(scan.textures.length?"skin":"format",scan.textures.length?messages.skin:messages.format);
-		if(scan.definitions.length>128) fail("limit",messages.limit);
-		const plan=[],names=new Set(),destinations=new Set();
-		for(const file of scan.definitions) {
-			const definition=modDefinition(file), directory=path.dirname(file);
-			if(["Northstar.Client","Northstar.Custom","Northstar.CustomServers"].some(name=>name.toLowerCase()===definition.Name.toLowerCase())) fail("definition","北极星核心组件请通过客户端安装或修复，不能作为外部模组覆盖。");
-			if(scan.definitions.some(other=>other!==file && inside(directory,path.dirname(other)))) fail("definition","模组文件夹内嵌套了另一个 mod.json，请将模组拆分为独立文件夹后导入。");
-			if(names.has(definition.Name.toLowerCase())) fail("duplicate",messages.duplicate);
-			names.add(definition.Name.toLowerCase());
-			const manifest=findManifest(directory,snapshot);
-			let folder=directory===snapshot ? (sourceStat.isDirectory()?path.basename(source):path.basename(source,path.extname(source))) : path.basename(directory);
-			if(directory===snapshot || folder.toLowerCase()==="mods") folder=options.destname || (manifest && manifest.data.name) || folder;
-			if(["Northstar.Client","Northstar.Custom","Northstar.CustomServers"].some(name=>name.toLowerCase()===folder.toLowerCase())) fail("definition","模组目标目录与北极星核心组件重名，无法导入。");
-			partsOf(folder);
-			if(folder.includes("/") || folder.includes("\\")) fail("unsafe",messages.unsafe);
-			let candidate=folder,number=2;
-			while(destinations.has(candidate.toLowerCase())) candidate=folder+" ("+(number++)+")";
-			destinations.add(candidate.toLowerCase());
-			plan.push({directory,folder:candidate,definition,manifest});
-		}
+		options.onProgress?.({phase:"validating",percent:30});
+		const {plan}=await inspectModDirectory(snapshot,{sourceName:sourceStat.isDirectory()?path.basename(source):path.basename(source,path.extname(source)),destname:options.destname});
 		// Check every destination before creating a staging directory in the game.
 		await options.guard?.();
 		checkDestinationPaths();
@@ -279,7 +319,7 @@ async function importLocalMod(source, options={}) {
 			item.target=path.join(destinationRoot,item.folder);
 			if(!inside(destinationRoot,item.target)) fail("unsafe",messages.unsafe);
 			if(fs.existsSync(item.target)) regular(item.target,true);
-			item.baseline=fs.existsSync(item.target)?treeDigest(item.target):null;
+			item.baseline=fs.existsSync(item.target)?await treeDigestAsync(item.target):null;
 		}
 		await fs.ensureDir(destinationRoot);
 		await options.guard?.();
@@ -295,23 +335,25 @@ async function importLocalMod(source, options={}) {
 				checkDestinationPaths();regular(item.staged,true);
 				if(item.manifest) await fs.copy(item.manifest.file,path.join(item.staged,"manifest.json"));
 				if(options.author) await fs.writeFile(path.join(item.staged,"thunderstore_author.txt"),String(options.author),"utf8");
-				item.stagedDigest=treeDigest(item.staged);
+				item.stagedDigest=await treeDigestAsync(item.staged);
+				options.onProgress?.({phase:"staging",percent:35+Math.round((i+1)/plan.length*45)});
 			}
 			for(const item of plan) {
 				await options.guard?.();
 				checkDestinationPaths();regular(item.staged,true);
 				if(fs.existsSync(item.target)) regular(item.target,true);
-				if((fs.existsSync(item.target)?treeDigest(item.target):null)!==item.baseline)fail('conflict',"已安装的模组已被其他程序修改，请刷新后重试。未覆盖当前文件。");
+				if((fs.existsSync(item.target)?await treeDigestAsync(item.target):null)!==item.baseline)fail('conflict',"已安装的模组已被其他程序修改，请刷新后重试。未覆盖当前文件。");
 				if(fs.existsSync(item.target)) {await fs.rename(item.target,item.backup);item.previous=true;}
 				committed.push(item);
 				await fs.rename(item.staged,item.target);
+				options.onProgress?.({phase:"committing",percent:90});
 			}
 		} catch(error) {
 			try {
 				checkDestinationPaths();
 				for(const item of committed.reverse()) {
-					if(item.previous&&fs.existsSync(item.backup)&&treeDigest(item.backup)!==item.baseline)fail('conflict',"已安装的模组已被其他程序修改，请刷新后重试。未覆盖当前文件。");
-					if(fs.existsSync(item.target)) {if(treeDigest(item.target)!==item.stagedDigest)fail('conflict',"已安装的模组已被其他程序修改，请刷新后重试。未覆盖当前文件。");await fs.remove(item.target);}
+					if(item.previous&&fs.existsSync(item.backup)&&await treeDigestAsync(item.backup)!==item.baseline)fail('conflict',"已安装的模组已被其他程序修改，请刷新后重试。未覆盖当前文件。");
+					if(fs.existsSync(item.target)) {if(await treeDigestAsync(item.target)!==item.stagedDigest)fail('conflict',"已安装的模组已被其他程序修改，请刷新后重试。未覆盖当前文件。");await fs.remove(item.target);}
 					if(item.previous && fs.existsSync(item.backup)) await fs.rename(item.backup,item.target);
 				}
 			} catch(restoreError) {
@@ -325,8 +367,8 @@ async function importLocalMod(source, options={}) {
 		// A cache cleanup failure must not turn a committed installation into a
 		// false failure. Each later import still receives a fresh directory.
 		if(transaction && !keepTransaction) {try {checkDestinationPaths();await fs.remove(transaction);} catch(_) {}}
-		try {await fs.remove(work);} catch(_) {}
+		if(work)try {await fs.remove(work);} catch(_) {}
 	}
 }
 
-module.exports = {importLocalMod,ImportError,messages,extractZip,scanTree,modDefinition};
+module.exports = {importLocalMod,ImportError,messages,extractZip,scanTree,modDefinition,inspectModDirectory,treeDigest,treeDigestAsync};

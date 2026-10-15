@@ -163,28 +163,33 @@ function createObserver(refresh) {
 
 const addedTimes = new AddedTimes(path.join(app.getPath("userData"), "mod-added-times.json"));
 const observer = createObserver(() => {try {getWindow().send("mods", manager.list());} catch (error) {log.error("Mod refresh failed:", error.message);}});
-let importing = false;
+let importing = false, mutationDepth = 0;
 const manager = {};
 function remember() {try {addedTimes.flush();} catch (error) {log.error("Unable to save mod added times:", error.message);}}
-async function guardedMutation(action) {
-  const selected = {gamePath: settings().gamepath, arguments: settings().nsargs || ""};
+function assertWritable(options={}) {
+  if(manager.sharedImportBusy&&!options.sharedImport || require("./dds-operation-gate").busy&&!mutationDepth) throw Object.assign(Error("另一个安装或启动操作正在进行，请完成后再修改 Mod。"),{code:"busy"});
+}
+async function guardedMutation(action, options={}) {
+  assertWritable(options);
+  const selected = {gamePath: settings().gamepath, arguments: settings().nsargs || "", region: settings().northstarRegion, independent: settings().independentServerMods};
   const context = profileContext();
   const guard = async () => {
     const current = settings();
-    if (current.gamepath !== selected.gamePath || (current.nsargs || "") !== selected.arguments || !context || profileContext()?.profile !== context.profile) throw Error("The selected game profile changed; retry your action.");
+    if (current.gamepath !== selected.gamePath || (current.nsargs || "") !== selected.arguments || current.northstarRegion !== selected.region || current.independentServerMods !== selected.independent || !context || profileContext()?.profile !== context.profile) throw Error("The selected game profile changed; retry your action.");
     const snapshot = await require("./is_running").snapshot();
     if (!snapshot.ok) throw Error("Unable to verify whether the game is running. Please retry.");
     if (snapshot.processes.some(item => ["northstarlauncher.exe", "titanfall2.exe", "titanfall2-unpacked.exe"].includes(item.image))) throw Error("Please close the game before changing installed mods.");
-    if (settings().gamepath !== selected.gamePath || (settings().nsargs || "") !== selected.arguments) throw Error("The selected game profile changed; retry your action.");
+    if (settings().gamepath !== selected.gamePath || (settings().nsargs || "") !== selected.arguments || settings().northstarRegion !== selected.region || settings().independentServerMods !== selected.independent) throw Error("The selected game profile changed; retry your action.");
   };
-  return require("./dds-operation-gate").run("mod-library", async () => {await guard(); return action(guard);});
+  return require("./dds-operation-gate").run("mod-library", async () => {await guard();mutationDepth++;try{const conf=settings();if(conf.independentServerMods)require("./server-mod-profiles").transition(conf,conf);return action(guard);}finally{mutationDepth--;}});
 }
 async function guardedResponse(action) {
   try {return await guardedMutation(action);} catch (error) {const result = failure(error); getWindow().log(result.error); return result;}
 }
 manager.list = function list(options = {}) {
   const context = profileContext(options);
-  const document = options.states?.format ? options.states : stateFile.parse(options.states || (context ? stateFile.checked(context.state) : null));
+  let document = options.states?.format ? options.states : stateFile.parse(options.states || (context ? stateFile.checked(context.state) : null));
+  if (context && options.states === undefined && settings().independentServerMods) document = require("./server-mod-profiles").view(context.profile, profileResolver.normalize(settings().northstarRegion), document);
   const library = scanLibrary(context, document, addedTimes);
   if (!options.readOnly) {
     manager.path = context?.mods || path.join(settings().gamepath || "", "R2Northstar", "mods"); manager.modfile.file = context?.state;
@@ -209,9 +214,24 @@ function projectLibrary(library, document) {
   const enabled = library.all.filter(item => !item.disabled), disabled = library.all.filter(item => item.disabled);
   return {all: [...enabled, ...disabled], enabled, disabled};
 }
+function persistSelections(context, original, intended) {
+  stateFile.write(context.state, original, intended);
+  if (!settings().independentServerMods) return;
+  try {require("./server-mod-profiles").transition(settings(), settings());}
+  catch (error) {
+    // Enabled choices and their per-server snapshot commit together. A failed
+    // metadata write cannot leave a successful-looking switch behind.
+    if (stateFile.checked(context.state)?.equals(intended)) {
+      if (original === null) fs.unlinkSync(context.state); else stateFile.write(context.state, intended, original);
+    }
+    throw error;
+  }
+}
 function setSelection(request, invert = false) {
   let context;
   try {
+    assertWritable();
+    if(settings().independentServerMods)require("./server-mod-profiles").transition(settings(),settings());
     const selections = stateSelections(request, invert);
     context = profileContext(); if (!context) throw Error("Select an installed Northstar game folder first.");
     const original = stateFile.checked(context.state), document = stateFile.parse(original), library = scanLibrary(context, document, addedTimes), operations = new Map(), byName = new Map();
@@ -235,7 +255,7 @@ function setSelection(request, invert = false) {
     }
     let changed = false;
     for (const operation of operations.values()) if (operation.before !== operation.after) {stateFile.set(document, operation.name, operation.version, operation.after); changed = true;}
-    if (changed) stateFile.write(context.state, original, stateFile.serialize(document));
+    if (changed) persistSelections(context, original, stateFile.serialize(document));
     return {ok: true, mods: projectLibrary(library, document)};
   } catch (error) {
     const result = failure(error); try {if (context) result.mods = scanLibrary(context, stateFile.parse(stateFile.checked(context.state)), addedTimes);} catch (_) {} return result;
@@ -245,10 +265,12 @@ manager.setState = request => setSelection(request);
 manager.setStateAsync = request => guardedResponse(() => setSelection(request));
 manager.modfile = {
   gen() {
+    try{assertWritable();}catch(error){return failure(error);}
+    if(settings().independentServerMods)require("./server-mod-profiles").transition(settings(),settings());
     const context = profileContext(); if (!context) return failure(Error("Select an installed Northstar game folder first."));
     const original = stateFile.checked(context.state), document = stateFile.parse(original), library = scanLibrary(context, document, addedTimes);
     for (const item of library.all) if (item.stateControl !== false) stateFile.set(document, item.name, item.stateVersion, item.required || !item.disabled);
-    const intended = stateFile.serialize(document); if (!original || !original.equals(intended)) stateFile.write(context.state, original, intended);
+    const intended = stateFile.serialize(document); if (!original || !original.equals(intended)) persistSelections(context, original, intended);
     return {ok: true, mods: scanLibrary(context, document, addedTimes)};
   },
   set(name, enabled) {return setSelection({names: [name], enabled});}, enable(name) {return this.set(name, true);}, disable(name) {return this.set(name, false);},
@@ -275,6 +297,7 @@ function inspectRemovalTree(context, folder, budget = {count: 0}) {
 manager.remove = function remove(name) {
   const moved = []; let context, trash, committed = false;
   try {
+    assertWritable();
     context = profileContext(); if (!context) throw Error("Select an installed Northstar game folder first.");
     const library = manager.list({readOnly: true});
     let selected;
@@ -313,19 +336,21 @@ manager.remove = function remove(name) {
   }
 };
 manager.removeAsync = name => guardedResponse(() => manager.remove(name));
+manager.isImportBusy = () => importing;
+manager.sharedImportBusy = false;
 manager.install = async function install(source, options = {}) {
   const name = typeof source === "string" ? path.basename(source) : ""; let ownsImport = false;
   try {
-    if (importing) throw Object.assign(Error("另一个模组正在导入，请等待完成后再试。"), {code: "busy"}); importing = true; ownsImport = true;
+    if (importing || manager.sharedImportBusy && !options.sharedImport) throw Object.assign(Error("另一个模组正在导入，请等待完成后再试。"), {code: "busy"}); importing = true; ownsImport = true;
     const context = profileContext(); if (!context) throw Object.assign(Error(importMessages.game), {code: "game"});
     const isolated = process.argv.some(value => value.startsWith("--fold-profile=") || value.startsWith("--neo-profile="));
     const cacheRoot = isolated ? path.join(app.getPath("userData"), "LocalModImports") : path.join(path.parse(context.root).root, "TFX-cache", "LocalModImports");
     getWindow().log(translate("gui.mods.installing"));
-    const result = await guardedMutation(guard => importLocalMod(source, {gamePath: context.root, profileDirectory: context.profile, cacheRoot, guard, author: options.author, destname: options.destname})); result.source = "local";
+    const result = await guardedMutation(guard => importLocalMod(source, {gamePath: context.root, profileDirectory: context.profile, cacheRoot, guard, author: options.author, destname: options.destname, onProgress: options.onProgress, preparedSnapshot:Boolean(options.sharedImport&&options.preparedSnapshot)}),{sharedImport:options.sharedImport}); result.source = "local";if(options.sharedImport)result.importOrigin="unified";
     getWindow().send("installed-mod", result); getWindow().log(translate("gui.mods.installed_mod")); getWindow().send("mods", manager.list()); return result;
   } catch (error) {
-    const result = {...failure(error), source: "local", name, code: error.code || "io"}; log.error("Local mod import failed:", result.error); getWindow().log(result.error); getWindow().send("failed-mod", result); return result;
-  } finally {if (ownsImport) importing = false; getWindow().send("set-buttons", !importing);}
+    const result = {...failure(error), source: "local", name, code: error.code || "io", ...(options.sharedImport?{importOrigin:"unified"}:{})}; log.error("Local mod import failed:", result.error); getWindow().log(result.error); getWindow().send("failed-mod", result); return result;
+  } finally {if (ownsImport) importing = false; getWindow().send("set-buttons", !importing && !manager.sharedImportBusy);}
 };
 ipcMain.on("gui-getmods", () => {try {getWindow().send("mods", manager.list());} catch (error) {log.error("Mod listing failed:", error.message); getWindow().log(error.message);}});
 ipcMain.handle("set-mod-state", (_event, request) => manager.setStateAsync(request));

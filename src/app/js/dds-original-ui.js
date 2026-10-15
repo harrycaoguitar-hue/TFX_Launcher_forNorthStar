@@ -43,7 +43,7 @@
     $('ddsOriginalError').hidden = !state.error;
     $('ddsOriginalError').textContent = I18n.text(state.error);
     if ((!canInstall() && !window.SkinRecovery?.canStart('dds',state)) || busy) $('ddsInstall').disabled = true;
-    if (busy) for (const id of ['ddsSelectPackage','ddsSelectFolder','ddsClearPackage','ddsRefresh']) if ($(id)) $(id).disabled = true;
+    if (busy) for (const id of ['ddsSelectPackage','ddsSelectFolder','ddsClearPackage']) if ($(id)) $(id).disabled = true;
   }
   function update(value = {}) {
     for (const key of ['package','original','game']) if (Object.prototype.hasOwnProperty.call(value,key)) state[key] = value[key];

@@ -5,6 +5,12 @@ const { ipcMain, screen } = require("electron");
 module.exports = function attachWindowMove(win, initialSize) {
 	let gesture = null;
 	let applying = false;
+	let restoringWindow = false;
+	// On fractional Windows display scales Electron can emit "maximize" while
+	// isMaximized() still reports false. Keep the native event state as well so
+	// resize events cannot replace the saved restore rectangle with the work area.
+	let nativeMaximized = win.isMaximized();
+	function isMaximized() { return nativeMaximized || win.isMaximized(); }
 	const bounds = win.getBounds();
 	function dimension(value, display) {
 		const scale = display.scaleFactor || 1;
@@ -29,7 +35,7 @@ module.exports = function attachWindowMove(win, initialSize) {
 	setBounds(normal);
 	function state() {
 		if (win.isDestroyed()) return {maximized: false, bounds: {...normal}};
-		return {maximized: win.isMaximized(), bounds: win.getBounds()};
+		return {maximized: isMaximized(), bounds: win.getBounds()};
 	}
 	function notify() {
 		if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("window-state", state());
@@ -42,20 +48,33 @@ module.exports = function attachWindowMove(win, initialSize) {
 	async function restore() {
 		// Windows can defer an unmaximize while its native state transition is
 		// still pending. Wait for it before writing the restored rectangle.
-		if (!win.isMaximized()) return;
-		win.unmaximize();
-		for (let attempt = 0; attempt < 8 && win.isMaximized(); attempt++) {
-			await new Promise(resolve => setTimeout(resolve, 16));
-			if (win.isDestroyed()) return;
-			if (attempt === 2) win.restore();
-		}
+		if (!isMaximized()) return;
+		const restored = {...normal};
+		restoringWindow = true;
+		try {
+			win.unmaximize();
+			for (let attempt = 0; attempt < 8 && isMaximized(); attempt++) {
+				await new Promise(resolve => setTimeout(resolve, 16));
+				if (win.isDestroyed()) return;
+				if (attempt === 2) win.restore();
+			}
+			// When Electron's getter disagrees with its maximize event, both
+			// native restore APIs can be no-ops. Restore the saved rectangle
+			// directly; do not infer a new size from the maximized work area.
+			if (nativeMaximized && !win.isMaximized()) {
+				setBounds(restored);
+				nativeMaximized = false;
+				notify();
+			}
+			if (!isMaximized()) normal = restored;
+		} finally { restoringWindow = false; }
 	}
 	win.on("blur", stop);
 	win.on("closed", stop);
-	win.on("maximize", notify);
-	win.on("unmaximize", notify);
+	win.on("maximize", () => { nativeMaximized = true; notify(); });
+	win.on("unmaximize", () => { nativeMaximized = false; notify(); });
 	win.on("resize", () => {
-		if (!applying && !gesture && !win.isMaximized() && !win.isMinimized()) {
+		if (!applying && !restoringWindow && !gesture && !isMaximized() && !win.isMinimized()) {
 			const current = win.getBounds();
 			normal = normalize(current);
 		}
@@ -65,9 +84,9 @@ module.exports = function attachWindowMove(win, initialSize) {
 		if (!allowed(event) || !point(value)) return false;
 		const current = win.getBounds();
 		const edge = typeof value.edge === "string" && /^(n|s|e|w|ne|nw|se|sw)$/.test(value.edge) ? value.edge : "";
-		if (edge && win.isMaximized()) return false;
-		if (!win.isMaximized()) normal = normalize({...current, width: normal.width, height: normal.height});
-		gesture = {start: {x: value.x, y: value.y}, bounds: {...normal}, edge, maximized: win.isMaximized(), ratio: Math.max(0, Math.min(1, (value.x - current.x) / current.width))};
+		if (edge && isMaximized()) return false;
+		if (!isMaximized()) normal = normalize({...current, width: normal.width, height: normal.height});
+		gesture = {start: {x: value.x, y: value.y}, bounds: {...normal}, edge, maximized: isMaximized(), ratio: Math.max(0, Math.min(1, (value.x - current.x) / current.width))};
 		return true;
 	});
 	ipcMain.handle("window-move-update", async (event, value) => {
@@ -79,7 +98,7 @@ module.exports = function attachWindowMove(win, initialSize) {
 			if (!session.restoring) session.restoring = restore();
 			await session.restoring;
 			if (gesture !== session || win.isDestroyed()) return state();
-			if (win.isMaximized()) return state();
+			if (isMaximized()) return state();
 			if (session.maximized) {
 				session.bounds.x = Math.round(value.x - session.bounds.width * session.ratio);
 				session.bounds.y = Math.round(value.y - 20);
@@ -114,13 +133,15 @@ module.exports = function attachWindowMove(win, initialSize) {
 	ipcMain.handle("window-toggle-maximize", async (event) => {
 		if (!allowed(event)) return state();
 		stop();
-		if (win.isMaximized()) {
+		if (isMaximized()) {
 			const restored = {...normal};
 			await restore();
-			if (!win.isMaximized()) setBounds(restored);
+			if (!isMaximized()) setBounds(restored);
 		} else {
 			normal = normalize({...win.getBounds(), width: normal.width, height: normal.height});
-			win.maximize();
+			nativeMaximized = true;
+			try { win.maximize(); }
+			catch (error) { nativeMaximized = win.isMaximized(); notify(); throw error; }
 		}
 		notify();
 		return state();

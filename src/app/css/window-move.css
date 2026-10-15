@@ -14,3 +14,9 @@ html,body,body *{-webkit-app-region:no-drag!important;app-region:no-drag!importa
 .vyra-window-resize-se{bottom:0;right:0;cursor:nwse-resize}
 .vyra-window-resize-sw{bottom:0;left:0;cursor:nesw-resize}
 .vyra-window-maximized .vyra-window-resize{display:none}
+
+/* Clip the complete surface, including fixed backgrounds and popup layers.
+   Maximized windows meet the work area without transparent corner gaps. */
+html{background:transparent!important;contain:paint}
+body.fold-shell{border-radius:18px;clip-path:inset(0 round 18px)}
+body.fold-shell.vyra-window-maximized{border-radius:0;clip-path:none}

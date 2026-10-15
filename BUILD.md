@@ -1,6 +1,6 @@
-# Building TFX Launcher 1.0.2
+# Building TFX Launcher 1.0.3
 
-The entry point is src/index.js. The application package and native Windows metadata use version 1.0.2. The public build configuration targets Windows x64 and keeps required archive tools and official client bundles outside ASAR.
+The entry point is src/index.js. The application package and native Windows metadata use version 1.0.3. The public build configuration targets Windows x64 and keeps required archive tools and official client bundles outside ASAR.
 
 ## Requirements
 
@@ -19,13 +19,17 @@ npm start
 npm run dist
 ```
 
-The portable application is written to dist/TFX-Launcher-1.0.2.exe. The distribution is unsigned. Signing requires the publisher's own certificate and is not configured in this source. The source archive includes package-lock.json and third-party notices. npm ci obtains the pinned dependency versions from their public registries.
+The portable application is written to dist/TFX-Launcher-1.0.3.exe. The distribution is unsigned. Signing requires the publisher's own certificate and is not configured in this source. The source archive includes package-lock.json and third-party notices. npm ci obtains the pinned dependency versions from their public registries.
 
 The development release was assembled from a verified Electron 43.1.1 runtime with native resources en-US, zh-CN, zh-TW, de and fr; native metadata and the TFX icon were applied before portable wrapping. A standard npm run dist build may retain additional Electron language resources, so compressed bytes need not be identical. No private build paths or signing credentials are required by the public build configuration.
 
 ## Data and behavior
 
-The existing fold.json name is retained for upgrade compatibility. Saved preferences remain under the Windows application data folder. Northstar download caches and transaction data, Thunderstore caches, and some mod-state backups prefer D:/TFX-Launcher-Data when D: exists. DDS / VTF skin backups and cross-format recovery records remain under fold-launcher in Windows application data; prepared client-switching files also use the .tfx area inside the game folder. Use Open backup folder on each skin page to locate its actual storage. Do not delete active recovery journals or client slots.
+The existing fold.json name is retained for upgrade compatibility. Saved preferences remain under the Windows application data folder. Northstar download caches and transaction data, Thunderstore caches, and some Mod-state backups prefer D:/TFX-Launcher-Data when D: exists. DDS / VTF skin backups and cross-format recovery records remain under fold-launcher in Windows application data; prepared client-switching files also use the .tfx area inside the game folder. Skin states are selected from the Arsenal. Do not delete active recovery journals, valid historical skin payloads or client slots.
+
+The unified import page inspects DDS, VTF and Northstar Mod contents before choosing its installer. A valid import proceeds automatically; invalid and ambiguous packages stop with an error. Per-weapon history restoration plans all DDS ranges and scoped VPK index changes in memory, validates their bytes and dependencies, and commits one durable recovery transaction. Selecting a historical skin restores its installed appearance. The original-skin action is separate. Valid history remains available after switching between states; only proven unreferenced, inactive cancelled or rolled-back import backups are eligible for automatic pruning.
+
+Independent server Mods is off by default. When enabled, it stores the enabled/disabled choices for NorthstarCN and Northstar separately. Installed Mod files, deletion and plugin binaries remain shared; DDS and VTF game resources are shared. Unsaved preference changes offer Save, Discard and Cancel when leaving the panel. Rounded restored windows use the same production movement and resizing service as square maximized windows.
 
 NorthstarCN 1.17.7 and Northstar 1.31.13 provide offline first-install bundles. Existing newer recognized local clients are preserved. The optional Global DiscordRPC.dll is excluded because its independent redistribution license was not declared by the inspected upstream source. Retained official files are unchanged and each is hashed in its manifest. Runtime downloads of official full updates retain their original contents. See src/tools/clients/SOURCE.md.
 

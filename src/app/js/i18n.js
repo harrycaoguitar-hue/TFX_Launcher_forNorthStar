@@ -65,7 +65,7 @@
   const sources = new WeakMap();
   const attributeSources = new WeakMap();
   const attributes = ['title','placeholder','aria-label'];
-  const ignored = 'script,style,textarea,[data-i18n-ignore],#nsRelease,#vpReleaseNotes,#settingsGamePath,#ddsPackageName,#vtfPackageName,#ddsFileList strong,#vtfFileList strong,#ddsBackupList strong,#vtfBackupList strong,#browserEntries .description,#browserEntries .name,#browserEntries .title,#modsdiv .el .name,#modsdiv .el .title,#modsdiv .el .description,#uiLanguage option';
+  const ignored = 'script,style,textarea,[data-i18n-ignore],#nsRelease,#vpReleaseNotes,#settingsGamePath,#ddsPackageName,#vtfPackageName,#ddsFileList strong,#vtfFileList strong,#browserEntries .description,#browserEntries .name,#browserEntries .title,#modsdiv .el .name,#modsdiv .el .title,#modsdiv .el .description,#uiLanguage option';
   let current = normalize(fold.loadSettings().data.uiLanguage);
   let pending = 0;
   const changedRoots = new Set();
@@ -238,5 +238,5 @@
   window.I18n=Object.freeze({normalize,t,text:translated,apply,preview,commit:preview,load,cancel:load,get current(){return current;},get locale(){return current;}});
   preview(current);
   window.addEventListener('DOMContentLoaded',()=>apply());
-  ipcRenderer.on('changed-settings',(_event,value)=>{if(value && Object.prototype.hasOwnProperty.call(value,'uiLanguage')) preview(value.uiLanguage);});
+  ipcRenderer.on('changed-settings',(_event,value)=>{if(value && Object.prototype.hasOwnProperty.call(value,'uiLanguage') && (typeof settings!=='object' || value.uiLanguage!==settings.uiLanguage)) preview(value.uiLanguage);});
 })();

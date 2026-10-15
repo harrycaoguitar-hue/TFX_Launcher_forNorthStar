@@ -51,7 +51,7 @@ class LaunchConfirmation {
     const session = {spawned: false, ready: false, entered: false, requireReady: options.gameVersion === "northstar", childPid: null, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, childExit: null, everSeen: false, everCandidate: false, everHandoffCandidate: false, bootstrapHandoff: false, missingAt: null, observationRevision: 0, lastSnapshotOk: true, lastSnapshot: baseline, retryHandoff: options.retryHandoff, retryPending: false, retryAttempted: false, targetImages};
     session.promise = new Promise(resolve => {session.resolve = resolve;});
     this.current = session;
-    session.timer = this.schedule(() => this.fail(session, session.requireReady && session.everSeen && !session.ready ? Object.assign(new Error("游戏进程已运行，但未能确认北极星私人服务器菜单已加载。请退出游戏并检查启动诊断后重试。"), {code:"NORTHSTAR_NOT_READY"}) : "等待游戏启动超时。请检查 EA App / Steam 是否已登录、是否有弹窗，确认游戏未启动后再重试；详情见启动诊断。"), this.timeoutMs);
+    session.timer = this.schedule(() => this.fail(session, session.requireReady && session.everSeen && !session.ready ? Object.assign(new Error("游戏进程已运行，但未能确认北极星私人服务器菜单已加载。请退出游戏并检查启动诊断后重试。"), {code:"NORTHSTAR_NOT_READY"}) : Object.assign(new Error("等待游戏启动超时。请检查 EA App / Steam 是否已登录、是否有弹窗，确认游戏未启动后再重试；详情见启动诊断。"), {code:"LAUNCH_TIMEOUT"})), this.timeoutMs);
     session.timer?.unref?.();
     this.speedUp?.(this.now() + this.timeoutMs);
     return session;
@@ -131,8 +131,8 @@ class LaunchConfirmation {
   }
   exitError(session) {
     const value = session.childExit;
-    if ((session.everCandidate || session.ready || session.entered) && (!value?.code || session.bootstrapHandoff) && !value?.signal) return "游戏在启动确认完成前已退出。现在可以重新启动；若不是手动关闭，请检查 EA App / Steam 提示与启动诊断。";
-    return "游戏启动进程提前退出" + (value?.signal ? "（" + value.signal + "）" : "（退出码 " + value?.code + "）") + "。请检查 EA App / Steam 的登录或授权提示、北极星文件是否完整，再重试。";
+    if ((session.everCandidate || session.ready || session.entered) && (!value?.code || session.bootstrapHandoff) && !value?.signal) return Object.assign(Error("游戏在启动确认完成前已退出。现在可以重新启动；若不是手动关闭，请检查 EA App / Steam 提示与启动诊断。"), {code:"LAUNCH_EARLY_EXIT"});
+    return Object.assign(Error("游戏启动进程提前退出" + (value?.signal ? "（" + value.signal + "）" : "（退出码 " + value?.code + "）") + "。请检查 EA App / Steam 的登录或授权提示、北极星文件是否完整，再重试。"), {code:session.everCandidate || session.ready || session.entered ? "LAUNCH_EARLY_EXIT" : "LAUNCHER_EARLY_EXIT"});
   }
   settle(session, result) {
     if (!session || this.current !== session) return;

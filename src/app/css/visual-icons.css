@@ -16,8 +16,7 @@
 #modsdiv .el .switch>.nv-icon,#browserEntries .el .visual>.nv-icon{display:none}
 #options summary .title>.nv-category-icon{width:18px;height:18px;color:var(--nv-accent,var(--cyan));opacity:.9}
 #options .actions button>.nv-icon{width:13px;height:13px;margin-right:5px;vertical-align:-2px}
-.dns-select-toggle>.nv-icon{order:2;width:12px;height:12px;margin:0 0 0 7px;opacity:.7}
-.fold-dds-history .fold-button>.nv-icon,.fold-folder-import>.nv-icon{width:14px;height:14px;margin-right:6px;vertical-align:-2px}
+.dns-select-toggle>.nv-icon{order:2;width:12px;height:12px;margin:0 0 0 7px;opacity:.7}.fold-folder-import>.nv-icon{width:14px;height:14px;margin-right:6px;vertical-align:-2px}
 .fold-brand-emblem .nv-brand-mark{width:48px;height:48px;fill:none;filter:none;overflow:visible}
 .nv-brand-orbit{fill:none;stroke:var(--lavender,var(--nv-accent,var(--cyan)));stroke-width:1.6;stroke-linecap:round;opacity:.75}
 .nv-brand-main{fill:var(--nv-accent,var(--cyan));stroke:none}

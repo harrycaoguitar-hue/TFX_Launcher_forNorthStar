@@ -108,7 +108,7 @@
   const staticControls = Object.freeze({
     minimize: ['minimize', true], close: ['close', true], ddsClearPackage: ['close', true],
     playNsBtn: ['arrow'], playTfBtn: ['arrow'], toggleall: ['toggle'], removeall: ['trash'],
-    ddsRefresh: ['refresh'], ddsSelectFolder: ['folder'], apply: ['save'], filter: ['filter']
+    ddsSelectFolder: ['folder'], apply: ['save'], filter: ['filter']
   });
   const actionGlyphs = Object.freeze({
     delete_request_cache: 'sweep', force_update_ns: 'refresh', delete_install_cache: 'sweep',
@@ -135,12 +135,8 @@
     decorateImages(root);
     const buttons = root.matches && root.matches('button') ? [root] : Array.from(root.querySelectorAll('button'));
     for (const button of buttons) {
-      if (button.closest('#ddsBackupList,#vtfBackupList')) {
-        const glyph = {delete:'trash','confirm-delete':'trash','cancel-delete':'close',restore:'backup'}[button.dataset.backupAction];
-        if (glyph) decorate(button,glyph);
-        else if (button.classList.contains('backup-history-toggle')) decorate(button,'down');
-      }
-      else if (button.id === 'loadmore') decorate(button, 'down');
+
+      if (button.id === 'loadmore') decorate(button, 'down');
       else if (button.closest('#modsdiv,#browserEntries') && !button.querySelector('svg')) {
         if (button.classList.contains('remove')) decorate(button, 'trash');
         else if (button.classList.contains('update')) decorate(button, 'refresh');
@@ -168,7 +164,7 @@
       }
       if (pending.size && !scheduled) { scheduled = true; queueMicrotask(flush); }
     });
-    for (const id of ['modsdiv', 'browserEntries', 'ddsBackupList', 'vtfBackupList']) {
+    for (const id of ['modsdiv', 'browserEntries']) {
       const root = document.getElementById(id);
       if (root) { dynamicActions(root); observer.observe(root, {childList: true, subtree: true}); }
     }

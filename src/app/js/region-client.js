@@ -28,6 +28,7 @@
   const damaged = status => status?.installState === 'damaged' || status?.state === 'needs-repair';
   const launchBusy = () => typeof launchPending !== 'undefined' && launchPending;
   const gameRunning = () => typeof is_running !== 'undefined' && is_running;
+  const preferencesBusy = () => Boolean(window.Settings?.saving);
   const phaseCopy = phase => ({
     checking: copy("正在检查客户端文件","Checking client files"),
     preparing: copy("正在准备客户端文件","Preparing client files"),
@@ -79,8 +80,8 @@
         installationLocks.delete(button);
       }
     }
-    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region]')) button.disabled = locked || launchBusy() || gameRunning() || externalUpdate;
-    if (launchBusy()) { playButton.disabled = true; return; }
+    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region]')) button.disabled = locked || launchBusy() || gameRunning() || externalUpdate || preferencesBusy();
+    if (launchBusy() || preferencesBusy()) { playButton.disabled = true; return; }
     playButton.setAttribute('aria-busy', String(locked || requests.has(selected)));
     playButton.dataset.clientAction = locked ? 'installing' : requests.has(selected) ? 'checking' : damaged(status) ? 'repair' : status?.installed === false ? 'install' : status?.installed === true ? 'launch' : 'retry-status';
     if (locked) {
@@ -105,7 +106,7 @@
     }
   }
   async function install(selected, repair) {
-    if (installing || externalUpdate || launchBusy() || gameRunning()) return;
+    if (installing || externalUpdate || launchBusy() || gameRunning() || preferencesBusy()) return;
     dismissInstallNotices();
     installing = {region: selected, repair};
     progress = {region: selected, phase: 'checking'};
@@ -133,7 +134,7 @@
     }
   }
   function activate(startGame) {
-    if (installing || requests.has(region()) || externalUpdate || launchBusy() || gameRunning()) return;
+    if (installing || requests.has(region()) || externalUpdate || launchBusy() || gameRunning() || preferencesBusy()) return;
     if (!gameDirectoryReady) { setpath(); return; }
     const status = statuses.get(region());
     if (damaged(status)) void install(region(), true);
@@ -142,7 +143,7 @@
     else void refresh(region(), true);
   }
   function reinstallIfNeeded() {
-    if (installing || requests.has(region()) || externalUpdate || launchBusy() || gameRunning()) return true;
+    if (installing || requests.has(region()) || externalUpdate || launchBusy() || gameRunning() || preferencesBusy()) return true;
     if (!gameDirectoryReady) { setpath(); return true; }
     const status = statuses.get(region());
     if (damaged(status)) { void install(region(), true); return true; }
@@ -261,6 +262,7 @@
     void refresh();
   });
   window.addEventListener('vyra-region-changed', () => { dismissInstallNotices(); render(); void refresh(); });
+  window.addEventListener('tfx-settings-saving-changed',renderAction);
   ipcRenderer.on('set-buttons', (_event, enabled) => { if (!installing) externalUpdate = !enabled; renderAction(); });
   ipcRenderer.on('ns-update-event', (_event, value) => {
     const key = typeof value === 'string' ? value : value?.key;

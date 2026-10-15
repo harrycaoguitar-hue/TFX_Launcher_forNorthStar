@@ -18,8 +18,8 @@ const sendChannels = new Set([
 
 const receiveChannels = new Set([
 	"window-state",
-	"dds-progress", "vtf-progress", "skin-resource-progress",
-	"launch-guard-result", "launch-status", "launch-compatibility", "northstar-client-progress",
+	"dds-progress", "vtf-progress", "skin-resource-progress", "skin-import-progress", "weapon-library-progress",
+	"launch-guard-result", "launch-status", "launch-diagnostic", "launch-compatibility", "northstar-client-progress",
 	"alert", "changed-settings", "confirm", "download-cancelled",
 	"duped-mod", "failed-mod", "gamepath-lost", "gamepath-status", "gamepath-error", "installed-mod",
 	"is-running", "legacy-duped-mod", "log", "mods", "newpath",
@@ -29,13 +29,15 @@ const receiveChannels = new Set([
 ]);
 
 const invokeChannels = new Set([
+	"skin-import-select", "skin-import-inspect", "skin-import-install", "skin-import-clear", "weapon-library-list", "weapon-library-restore", "weapon-library-prune",
 	"launcher-update-check", "launcher-update-open",
+	"launch-diagnostic-get", "launch-diagnostic-export",
 	"settings-save", "settings-restore-defaults", "northstar-client-status", "northstar-client-install",
 	"server-list-get",
 	"set-mod-state",
 	"window-move-begin", "window-move-update", "window-move-end", "window-toggle-maximize",
-	"vtf-status", "vtf-select", "vtf-inspect", "vtf-clear", "vtf-install", "vtf-restore", "vtf-delete-backup", "vtf-open-backups",
-	"dds-status", "dds-select", "dds-inspect", "dds-clear", "dds-install", "dds-restore", "dds-delete-backup", "dds-open-backups",
+	"vtf-status", "vtf-preview", "vtf-select", "vtf-inspect", "vtf-clear", "vtf-install", "vtf-restore", "vtf-delete-backup", "vtf-open-backups",
+	"dds-status", "dds-preview", "dds-select", "dds-inspect", "dds-clear", "dds-install", "dds-restore", "dds-delete-backup", "dds-open-backups",
 	"dds-protection-status", "dds-protection-set", "dds-protection-capture",
 	"dds-originals-select", "vtf-originals-select",
 	"dds-resource-plan", "dds-resource-download", "dds-resource-cancel", "vtf-resource-plan", "vtf-resource-download", "vtf-resource-cancel",

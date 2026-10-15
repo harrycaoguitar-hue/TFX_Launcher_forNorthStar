@@ -33,9 +33,10 @@ function validRecord(r) {
 // Keep all historical bytes, but retire its older chains once a subsequent
 // successful installation records that verified original boundary.
 function retired(entry, record, journals) {
+  if(entry.ignoredRecords?.has(rangeKey(record)))return true;
   return journals.some(later => later.manifest.createdAt > entry.manifest.createdAt &&
     ["installed", "restored"].includes(later.manifest.state) &&
-    later.manifest.records.some(r => r.originalReset === true && rangeKey(r) === rangeKey(record)));
+    later.manifest.records.some(r => r.originalReset === true && !later.ignoredRecords?.has(rangeKey(r)) && rangeKey(r) === rangeKey(record)));
 }
 
 async function readJournals(baseDir, gamePath) {

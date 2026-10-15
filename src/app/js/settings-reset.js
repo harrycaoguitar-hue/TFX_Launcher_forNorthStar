@@ -17,8 +17,11 @@
     updateCopy();
   }
   async function restore(){
-    if(busy)return;
+    if(busy||Settings.saving||window.mods?.pending?.size){cancel();return;}
     cancel();busy=true;result='';button.disabled=true;button.setAttribute('aria-busy','true');
+    const locks=new Map();
+    for(const control of document.querySelectorAll('#options input,#options select,#options button')){locks.set(control,control.disabled);control.disabled=true;}
+    Settings.saving=true;window.dispatchEvent(new Event('tfx-settings-saving-changed'));
     status.textContent=text('saving');updateCopy();
     try{
       const response=await ipcRenderer.invoke('settings-restore-defaults');
@@ -33,7 +36,10 @@
       result='failure';status.classList.remove('is-success');status.classList.add('is-error');
       status.title=error.message||String(error);
     }finally{
+      Settings.saving=false;
+      for(const[control,disabled]of locks)if(control.isConnected)control.disabled=disabled;
       busy=false;button.disabled=false;button.removeAttribute('aria-busy');updateCopy();
+      window.dispatchEvent(new Event('tfx-settings-saving-changed'));
     }
   }
   function tick(now){
@@ -45,7 +51,7 @@
     frame=requestAnimationFrame(tick);
   }
   function begin(kind,value){
-    if(hold||busy||button.disabled||document.hidden||!popup.classList.contains('shown'))return;
+    if(hold||busy||Settings.saving||window.mods?.pending?.size||button.disabled||document.hidden||!popup.classList.contains('shown'))return;
     button.focus({preventScroll:true});hold={kind,value,started:performance.now()};result='';
     status.textContent=text('release');status.classList.remove('is-error','is-success');
     status.removeAttribute('title');

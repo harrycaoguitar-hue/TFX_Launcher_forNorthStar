@@ -23,7 +23,7 @@ function selection() {
 	const launcher = path.join(conf.gamepath, "NorthstarLauncher.exe");
 	let launcherStat; try {launcherStat = fs.lstatSync(launcher);} catch (_) {}
 	if (!launcherStat?.isFile() || launcherStat.isSymbolicLink()) throw Object.assign(new Error("Install the selected Northstar client from the Play page before installing mods."), {code: "CLIENT_MISSING"});
-	return {gamePath: path.resolve(conf.gamepath), profileDirectory: region.resolveProfile(conf.gamepath, splitArguments(conf.nsargs || ""))};
+	return {gamePath: path.resolve(conf.gamepath), profileDirectory: region.resolveProfile(conf.gamepath, splitArguments(conf.nsargs || "")), region: region.normalize(conf.northstarRegion), independentServerMods: conf.independentServerMods === true};
 }
 function profilePath() {
 	try {return selection().profileDirectory;} catch (_) {return path.resolve(settings().gamepath || ".", "R2Northstar");}
@@ -31,10 +31,10 @@ function profilePath() {
 function send(channel, value) {try {win().send(channel, value);} catch (_) {}}
 async function guard(captured) {
 	const current = selection();
-	if (current.gamePath.toLowerCase() !== captured.gamePath.toLowerCase() || current.profileDirectory.toLowerCase() !== captured.profileDirectory.toLowerCase()) throw Object.assign(new Error("The selected game profile changed. Retry installation."), {code: "PROFILE_CHANGED"});
+	if (current.gamePath.toLowerCase() !== captured.gamePath.toLowerCase() || current.profileDirectory.toLowerCase() !== captured.profileDirectory.toLowerCase() || current.region !== captured.region || current.independentServerMods !== captured.independentServerMods) throw Object.assign(new Error("The selected game profile changed. Retry installation."), {code: "PROFILE_CHANGED"});
 	const snapshot = await running.snapshot();
 	const after = selection();
-	if (after.gamePath.toLowerCase() !== captured.gamePath.toLowerCase() || after.profileDirectory.toLowerCase() !== captured.profileDirectory.toLowerCase()) throw Object.assign(new Error("The selected game profile changed. Retry installation."), {code: "PROFILE_CHANGED"});
+	if (after.gamePath.toLowerCase() !== captured.gamePath.toLowerCase() || after.profileDirectory.toLowerCase() !== captured.profileDirectory.toLowerCase() || after.region !== captured.region || after.independentServerMods !== captured.independentServerMods) throw Object.assign(new Error("The selected game profile changed. Retry installation."), {code: "PROFILE_CHANGED"});
 	if (!snapshot?.ok) throw Object.assign(new Error("Unable to check the game process. Retry after the game is closed."), {code: "PROCESS_QUERY"});
 	if (hasGame(snapshot)) throw Object.assign(new Error("Close Titanfall 2 before changing installed mods."), {code: "GAME_RUNNING"});
 }
@@ -44,12 +44,17 @@ const installer = createInstaller({
 	planInstall: (request, options) => catalog.planInstall(request, options),
 	download: (url, destination, options) => downloadPackage(url, destination, {...options, request:downloadRequest}),
 	guard,
-	commit: action => gate.run("thunderstore-mods", action),
+	commit: action => gate.run("thunderstore-mods", () => {
+		const conf = settings();
+		if (conf.independentServerMods) require("./server-mod-profiles").transition(conf, conf);
+		return action();
+	}),
 	progress: value => send("pkg-progress", value),
 	confirmPlugins: packages => win().confirm(`${lang("gui.mods.confirm_plugins.title")}\n${packages.map(item => item.id).join("\n")}\n\n${lang("gui.mods.confirm_plugins.description")}`)
 });
 
 const packages = {
+	get activeCount() {return installer.activeCount;},
 	get path() {return path.join(profilePath(), "packages");},
 	format_name: formatName,
 	split_name: splitName,

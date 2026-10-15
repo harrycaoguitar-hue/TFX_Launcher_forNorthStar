@@ -11,10 +11,10 @@
     home: ['TFX', '开始游戏'],
     servers: ['SERVER DIRECTORY', '社区服务器'],
     mods: ['MOD MANAGER', '我的模组'],
-    dds: ['DDS INSTALLER', 'DDS 安装'],
-    vtf: ['VTF INSTALLER', 'VTF 安装']
+    skins: ['SKIN INSTALLER', '皮肤安装']
   };
   let currentView = 'home';
+  let skinFormat = 'dds';
   let selectedMode = 'northstar';
   let visiblePage = null;
   let pendingPage = null;
@@ -60,26 +60,47 @@
     $('foldPageEyebrow').textContent = title[0]; $('foldPageTitle').textContent = title[1];
     document.body.dataset.foldView = view;
   }
+  function setSkinFormat(format) {
+    if (!['dds','vtf','mod'].includes(format)) return;
+    // Keep the active installation visible until its transaction is complete.
+    if (format !== skinFormat && (dds.busy || window.VTF?.state.busy || window.SkinRecovery?.busy || window.SkinImport?.state.phase==='installing')) return;
+    skinFormat = format;
+    for (const kind of ['dds','vtf','mod']) $(kind==='mod'?'skinModWorkspace':kind+'Workspace')?.classList.toggle('hidden',kind!==format);
+    for (const button of document.querySelectorAll('[data-skin-format]')) {
+      const active=button.dataset.skinFormat===format;
+      button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
+    }
+    $('skinWorkspace').dataset.format=format;
+    if (format==='dds') refreshDds();else if(format==='vtf') window.VTF?.refresh();
+  }
+  function adoptDdsImport(value) {
+    ++ddsRefreshSequence;dds.error=value?.error||'';dds.busy=false;
+    dds.package=value?.package||null;dds.original=value?.original||null;dds.conflictPreview=value?.conflictPreview||null;
+    dds.locallyCleared=!value?.package;
+    renderDds(value);
+    if(value?.package)window.SkinFeedback?.importResult('dds',value);
+  }
   function navigate(view) {
+    if (view!=='settings' && !Settings.canLeave(() => navigate(view))) return;
+    if(view==='dds'||view==='vtf'){setSkinFormat(view);view='skins';}
     if (view === 'store') { Browser.toggle(true); return; }
     if (view === 'settings') { Settings.toggle(true); return; }
     if (!(view in titles)) return;
     popups.set_all(false);
     const requestedMode = selectedMode;
-    const nextPage = view === 'home' ? (requestedMode === 'vanilla' ? $('tfContent').querySelector('.fold-home') : $('nsMain')) : $(view === 'servers' ? 'serverPage' : view === 'mods' ? 'nsMods' : view === 'dds' ? 'ddsWorkspace' : 'vtfWorkspace');
+    const nextPage = view === 'home' ? (requestedMode === 'vanilla' ? $('tfContent').querySelector('.fold-home') : $('nsMain')) : $(view === 'servers' ? 'serverPage' : view === 'mods' ? 'nsMods' : 'skinWorkspace');
     if (view === currentView && nextPage === (pendingPage || visiblePage)) return;
     currentView = view;
     pendingPage = nextPage;
     setNavigation(view);
     window.VyraMotion.changePage(visiblePage, nextPage, () => {
       legacyPage(view === 'home' && requestedMode === 'vanilla' ? 2 : 1);
-      for (const id of ['nsMain','serverPage','nsMods','nsRelease','ddsWorkspace','vtfWorkspace']) $(id).classList.add('hidden');
+      for (const id of ['nsMain','serverPage','nsMods','nsRelease','skinWorkspace','ddsWorkspace','vtfWorkspace']) $(id).classList.add('hidden');
       if (view === 'home') $('nsMain').classList.remove('hidden');
       if (view === 'servers') $('serverPage').classList.remove('hidden');
       if (view === 'mods') { showNsSection('mods'); $('ddsWorkspace').classList.add('hidden'); }
       if (view === 'release') { showNsSection('release'); $('ddsWorkspace').classList.add('hidden'); }
-      if (view === 'dds') { $('ddsWorkspace').classList.remove('hidden'); refreshDds(); }
-      if (view === 'vtf') { $('vtfWorkspace').classList.remove('hidden'); window.VTF?.refresh(); }
+      if (view === 'skins') { $('skinWorkspace').classList.remove('hidden');setSkinFormat(skinFormat); }
       const activeContent = view === 'home' && requestedMode === 'vanilla' ? $('tfContent') : $('nsContent');
       activeContent.scrollTop = 0;
       visiblePage = nextPage;
@@ -89,6 +110,7 @@
   }
   function setMode(mode) {
     if (!['northstar','vanilla'].includes(mode)) return;
+    if (!Settings.canLeave(() => setMode(mode))) return;
     selectedMode = mode;
     for (const button of document.querySelectorAll('[data-mode]')) {
       button.classList.toggle('selected',button.dataset.mode === mode);
@@ -98,14 +120,13 @@
   }
   // Original loss-of-directory handling routes into an actionable home, retaining
   // the original picker flow without exposing the removed launcher-update page.
-  window.page = index => { selectedMode = index === 2 ? 'vanilla' : 'northstar'; setMode(selectedMode); };
+  window.page = index => setMode(index === 2 ? 'vanilla' : 'northstar');
   Settings.toggle = state => originalSettingsToggle(state);
 
   function addLog(message) {
     if (!message) return;
     const stamp = new Intl.DateTimeFormat(window.I18n?.current || 'en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date());
     dds.log.push('[' + stamp + '] ' + String(message)); if (dds.log.length > 200) dds.log.shift();
-    $('ddsLog').textContent = dds.log.map(line => I18n.text(line)).join('\n'); $('ddsLogCount').textContent = String(dds.log.length); $('ddsLog').scrollTop = $('ddsLog').scrollHeight;
   }
   function renderDds(state) {
     if (state) {
@@ -120,9 +141,11 @@
       if ('protection' in state) dds.protection = state.protection;
       if ('original' in state && !dds.locallyCleared) dds.original = state.original;
       if ('skinRepair' in state) dds.skinRepair = state.skinRepair;
+      if ('conflictPreview' in state && !dds.locallyCleared) dds.conflictPreview = state.conflictPreview;
       if ('busy' in state) dds.busy = Boolean(state.busy);
     }
     const pkg = dds.package;
+    window.SkinConflictPreview?.render('dds',dds);
     $('ddsPackageInfo').hidden = !pkg;
     $('ddsSelectPackage').hidden = Boolean(pkg);
     $('ddsSummary').hidden = !pkg;
@@ -155,7 +178,7 @@
     if (dds.error) { $('ddsStatus').textContent = I18n.text(dds.error); $('ddsStatus').classList.add('fold-dds-error'); }
     const pendingRecovery = Boolean(dds.pending?.length);
     if (pendingRecovery && !dds.error) {
-      $('ddsStatus').textContent = I18n.text('上次跨格式换肤尚未完成，请先恢复下方的跨格式备份。');
+      $('ddsStatus').textContent = I18n.text('上次跨格式换肤尚未完成，请先在武器库中恢复。');
       $('ddsStatus').classList.add('fold-dds-error');
       $('ddsValidationState').textContent = I18n.text('需要处理');
       $('ddsReadyHint').textContent = I18n.text('处理提示后即可安装。');
@@ -169,43 +192,15 @@
     }
     const recoveryAvailable = window.SkinRecovery?.canStart('dds',dds);
     $('ddsInstall').disabled = dds.busy || window.SkinRecovery?.busy || dds.skinRepair?.state==='error' || pendingRecovery || !pkg || (!recoveryAvailable && (!resourceUsable || needsOriginal)) || window.DDSOriginal?.busy || (typeof is_running !== 'undefined' && is_running);
-    $('ddsInstall').lastChild.textContent = (!dds.game.ready || needsOriginal || dds.skinRepair?.ready===false) && recoveryAvailable ? I18n.t('skinRecovery.autoInstall') : I18n.text('安装皮肤');
+    $('ddsInstall').querySelector('[data-skin-install-label]').textContent = (!dds.game.ready || needsOriginal || dds.skinRepair?.ready===false) && recoveryAvailable ? I18n.t('skinRecovery.autoInstall') : I18n.text('安装皮肤');
     $('ddsSelectPackage').disabled = dds.busy; $('ddsSelectFolder').disabled = dds.busy;
-    $('ddsClearPackage').disabled = dds.busy; $('ddsRefresh').disabled = dds.busy;
+    $('ddsClearPackage').disabled = dds.busy;
     $('ddsWorkspace').setAttribute('aria-busy',String(dds.busy));
     window.DDSGuard?.update({package:dds.package,protection:dds.protection,busy:dds.busy});
     window.DDSOriginal?.update({...dds,busy:dds.busy||window.SkinRecovery?.busy});
     window.SkinRecovery?.update('dds',dds);
-    $('ddsBackupCount').textContent = dds.backups.length ? `${dds.backups.length} 份记录` : '暂无备份';
-    SkinBackupHistory.render($('ddsBackupList'),dds.backups,backup => {
-      const row = document.createElement('div'); row.className = 'fold-backup-entry'; row.dataset.backupId = backup.id;
-      const content = document.createElement('div'); const name = document.createElement('strong'); name.textContent = backup.crossFormat ? I18n.text(backup.name) : backup.name || backup.id;
-      const meta = document.createElement('small');
-      const date = new Date(backup.createdAt);
-      meta.textContent = I18n.text(`${Number.isNaN(date.getTime())?'':date.toLocaleString(I18n.current,{hour12:false})} · ${backup.count || 0} 个皮肤文件 · ${bytes(backup.bytes)}`);
-      content.append(name,meta); row.append(content);
-      // Cleanup rows restore old resolutions; they are not active skin payloads.
-      const covered = Array.isArray(backup.coveredBy) && backup.coveredBy.length > 0;
-      const activeCount = Number.isFinite(backup.activeCount) ? backup.activeCount : null;
-      const skinCount = Math.max(0,(Number(backup.count)||0)-(Number(backup.resetCount)||0));
-      if (backup.state === 'installed' && covered && (backup.historyOnly || activeCount === 0 || (activeCount > 0 && activeCount < skinCount))) {
-        const status = document.createElement('small'); status.className = 'fold-backup-coverage'; status.setAttribute('data-i18n-ignore','');
-        const replaced = backup.historyOnly || activeCount === 0;
-        status.textContent = I18n.current === 'zh-CN' ? (replaced ? '已被后续换肤替换' : '部分皮肤仍生效') : I18n.text(replaced ? 'Replaced by a later skin installation' : 'Some skin files are still active');
-        content.append(status);
-      }
-      if (['installed','pending','cross-installed'].includes(backup.state)) {
-        const restore = document.createElement('button'); restore.className = 'fold-button compact'; restore.textContent = I18n.text('恢复安装前'); restore.disabled = dds.busy || backup.canRestore === false;
-        restore.dataset.backupAction = 'restore';
-        restore.setAttribute('data-i18n-ignore','');
-        if (backup.canRestore === false) restore.title = I18n.current === 'zh-CN' ? '请先恢复较新的安装记录' : I18n.text('Restore newer installation records first');
-        restore.addEventListener('click',() => restoreBackup(backup)); row.append(restore);
-      } else {
-        const label = document.createElement('span'); label.className = 'restored'; label.textContent = ['restored','rolled-back'].includes(backup.state) ? '已恢复' : backup.state === 'failed' ? '安装未完成' : '需检查'; row.append(label);
-      }
-      SkinBackupHistory.addDeleteButton($('ddsBackupList'),row,backup,deleteBackup,dds.busy);
-      return row;
-    },{busy:dds.busy});
+    window.SkinFeedback?.sync('dds',dds);
+    window.SkinImport?.render();
   }
   function refreshDds() {
     if (dds.busy) return null;
@@ -225,46 +220,54 @@
     return promise;
   }
   function refreshVisibleDds() {
-    if (currentView === 'dds' || dds.package || dds.busy) return refreshDds();
+    if ((currentView === 'skins' && skinFormat === 'dds') || dds.package || dds.busy) return refreshDds();
   }
   async function ddsAction(channel, input, options = {}) {
-    if (dds.busy || window.DDSOriginal?.busy) return null;
+    if (dds.busy || window.DDSOriginal?.busy || (options.select && window.SkinRecovery?.busy)) return null;
+    if(options.select){
+      if(channel==='dds-clear')window.SkinFeedback?.clear('dds');
+      else window.SkinFeedback?.beginImport('dds',{path:input?.path,picking:channel==='dds-select'});
+    }
+    if(!options.select&&channel!=='dds-install')window.SkinFeedback?.clearProgress('dds');
     // Invalidate any in-flight refresh before clearing the visible selection.
     ++ddsRefreshSequence;
     dds.busy = true; dds.error = '';
-    if (options.select) { dds.locallyCleared = true; dds.package = null; dds.original = null; dds.skinRepair=null; }
-    renderDds(); $('ddsProgress').hidden = Boolean(options.hideProgress); $('ddsProgressValue').textContent = '0%'; $('ddsProgressBar').style.width = '0%';
-    $('ddsProgressLabel').textContent = options.label || '正在准备…';
+    if (options.select) { dds.locallyCleared = true; dds.package = null; dds.original = null; dds.skinRepair=null; dds.conflictPreview=null; }
+    renderDds();
+    if(!options.select&&channel!=='dds-install'){$('ddsProgress').hidden = Boolean(options.hideProgress); $('ddsProgressValue').textContent = '0%'; $('ddsProgressBar').style.width = '0%';$('ddsProgressLabel').textContent = options.label || '正在准备…';}
     try {
       const state = await ipcRenderer.invoke(channel,input);
       if (Number.isSafeInteger(state.selectionRevision) && state.selectionRevision < dds.selectionRevision) return null;
       // Failure and cancellation responses also carry the backend selection revision.
       if (Number.isSafeInteger(state.selectionRevision)) dds.selectionRevision = Math.max(dds.selectionRevision,state.selectionRevision);
       if ('package' in state && state.package === null) { dds.package = null; dds.original = null; dds.locallyCleared = true; }
-      if (state.cancelled) { $('ddsProgress').hidden = true; return state; }
+      if (state.cancelled) { if(options.select)window.SkinFeedback?.importResult('dds',state);else window.SkinFeedback?.finish('dds',state); return state; }
       if (!state.ok) throw new Error(state.error || '皮肤操作未能完成');
       if (options.select && state.package) dds.locallyCleared = false;
       renderDds(state);
+      if(options.select&&channel!=='dds-clear')window.SkinFeedback?.importResult('dds',state);
       if (options.success) showToast(options.success);
       return state;
     } catch (error) {
+      if(options.select&&channel!=='dds-clear')window.SkinFeedback?.importResult('dds',{ok:false,error:error.message});
+      if(channel==='dds-install')window.SkinFeedback?.finish('dds',{ok:false,error:error.message});
       dds.error = error.message; $('ddsStatus').textContent = I18n.text(error.message); $('ddsStatus').classList.add('fold-dds-error'); addLog(error.message); showToast('皮肤操作未完成',true,I18n.text(error.message));
       return {ok:false,error:error.message};
     } finally {
       dds.busy = false; renderDds();
       // A failed write can publish a recovery journal. Load its restore control
       // while keeping the concrete error message on screen.
-      if (dds.error && ['dds-install','dds-restore','dds-delete-backup'].includes(channel)) await refreshDds();
+      if (dds.error && channel === 'dds-install') await refreshDds();
     }
   }
   async function selectPackage(kind = 'file') {
     const result = await ddsAction('dds-select',{kind},{select:true,label:'正在选择皮肤…'});
-    if (result?.ok && !result.cancelled) { addLog(`已导入 ${result.package?.name || '皮肤'}，完成格式与资源检查。`); $('ddsProgress').hidden = true; }
+    if (result?.ok && !result.cancelled) { addLog(`已导入 ${result.package?.name || '皮肤'}，完成格式与资源检查。`); }
     return result;
   }
   async function inspectPackage(filePath) {
     const result = await ddsAction('dds-inspect',{path:filePath},{select:true,label:'正在检查皮肤…'});
-    if (result?.ok) { addLog(`已导入 ${result.package?.name || '皮肤'}，完成格式与资源检查。`); $('ddsProgress').hidden = true; }
+    if (result?.ok) { addLog(`已导入 ${result.package?.name || '皮肤'}，完成格式与资源检查。`); }
     return result;
   }
   async function clearPackage(message = '') {
@@ -276,14 +279,17 @@
     return result;
   }
   async function installTextures({skipRecovery=false}={}) {
-    if(!skipRecovery&&window.SkinRecovery)return window.SkinRecovery.install('dds');
+    if(!skipRecovery&&window.SkinRecovery){if(!dds.package||dds.busy||window.SkinRecovery.busy||!window.SkinRecovery.canStart('dds',dds))return null;window.SkinFeedback?.beginInstall('dds');return window.SkinRecovery.install('dds');}
     if (!dds.package || !(dds.game.ready || dds.game.canRepair) || dds.pending?.length || dds.busy || window.DDSOriginal?.busy || (window.DDSOriginal && !window.DDSOriginal.canInstall(dds.package,dds.original))) return null;
-    const result = await ddsAction('dds-install',{packageId:dds.package.id,selectionRevision:dds.selectionRevision},{label:dds.game.canRepair ? I18n.t('ddsResource.preparing') : '正在备份安装前资源…',success:'皮肤安装完成'});
+    window.SkinFeedback?.beginInstall('dds');
+    const result = await ddsAction('dds-install',{packageId:dds.package.id,selectionRevision:dds.selectionRevision},{label:dds.game.canRepair ? I18n.t('ddsResource.preparing') : '正在备份安装前资源…'});
     return finishInstallation(result);
   }
   async function finishInstallation(result) {
-    if (result?.ok) {
-      if(result.installed)showToast(I18n.text('皮肤安装完成'));
+    window.SkinFeedback?.finish('dds',result);
+    window.SkinImport?.installationResult('dds',result);
+    if (result?.ok && !result.cancelled && !result.waiting && !result.confirmationRequired) {
+      new Toast({scheme:'success',variant:'skin-complete',key:'skin-install-complete',title:I18n.text('皮肤安装完成'),description:I18n.t('skinImport.completeHint'),timeout:5000});
       addLog('皮肤写入与校验完成，安装前备份已保存。');
       const installed = result.result || result;
       const resetCount = Number(installed.resetCount) || 0;
@@ -295,43 +301,23 @@
         addLog(result.protectionWarning);
         new Toast({scheme:'warning',title:I18n.text('皮肤安装完成，但启动保护需要处理'),description:I18n.text(result.protectionWarning),timeout:9000});
       }
-      await refreshDds();
+      // Install IPC already returns the verified post-write state. Reusing it
+      // avoids another resource/conflict/backup scan, while incomplete or stale
+      // responses still take the existing guarded refresh path.
+      const fresh = result.game?.path === settings.gamepath && result.package?.id === dds.package?.id && result.selectionRevision === dds.selectionRevision && Array.isArray(result.backups) && Array.isArray(result.pending);
+      if (fresh) renderDds(result); else await refreshDds();
     }
     return result;
   }
-  async function restoreBackup(backup) {
-    if (dds.busy) return null;
-    const displayName = backup.crossFormat ? I18n.text(backup.name) : backup.name || backup.id;
-    if (!confirm(I18n.text(`恢复「${displayName}」安装前的皮肤？\n对应资源将回到这份备份记录的原始状态。`))) return null;
-    const result = await ddsAction('dds-restore',{backupId:backup.id},{label:'正在恢复安装前皮肤…',success:'安装前皮肤已恢复'});
-    if (result?.ok) { addLog('资源已恢复到这份安装记录之前，哈希校验通过。'); await refreshDds(); }
-    return result;
-  }
-  async function deleteBackup(backup) {
-    if (dds.busy || backup.canDelete !== true) return null;
-    const result = await ddsAction('dds-delete-backup',{backupId:backup.id},{hideProgress:true,success:I18n.current === 'en-US' ? 'Backup deleted' : '备份已删除'});
-    if (result?.ok) {
-      addLog(I18n.current === 'en-US' ? 'The selected backup and its recovery files have been deleted.' : '已删除所选备份及其恢复文件。');
-      if (result.result?.cleanupWarning) { addLog(I18n.text(result.result.cleanupWarning)); showToast(I18n.current === 'en-US' ? 'Recovery history retained' : '部分恢复记录已保留',true,I18n.text(result.result.cleanupWarning)); }
-      await refreshDds();
-    }
-    return result;
-  }
-
   const folderButton = document.createElement('button'); folderButton.id = 'ddsSelectFolder'; folderButton.className = 'fold-folder-import'; folderButton.textContent = '选择 DDS 文件夹';
   folderButton.addEventListener('click',() => selectPackage('folder')); $('ddsSelectPackage').after(folderButton);
   $('ddsSelectPackage').addEventListener('click',() => selectPackage());
   $('ddsInstall').addEventListener('click',installTextures);
-  $('ddsRefresh').addEventListener('click',refreshDds);
-  $('ddsClearPackage').addEventListener('click',() => clearPackage());
-  $('ddsOpenBackups').addEventListener('click',async() => {
-    const result = await ipcRenderer.invoke('dds-open-backups'); if (!result.ok) showToast('无法打开备份目录',true,result.error);
-  });
+  $('ddsClearPackage').addEventListener('click',() => window.SkinImport ? window.SkinImport.clear() : clearPackage());
   ipcRenderer.on('dds-progress',(_event,data) => {
     if (!data) return;
-    $('ddsProgress').hidden = false;
-    const percent = Math.max(0,Math.min(100,Number(data.percent)||0));
-    $('ddsProgressLabel').textContent = data.message || '正在处理皮肤…'; $('ddsProgressValue').textContent = Math.round(percent) + '%'; $('ddsProgressBar').style.width = percent + '%';
+    const handled=window.SkinFeedback?.progress('dds',data);
+    if(!handled&&dds.busy){$('ddsProgress').hidden=false;const percent=Math.max(0,Math.min(100,Number(data.percent)||0));$('ddsProgressLabel').textContent=I18n.text(data.message||'正在处理皮肤…');$('ddsProgressValue').textContent=Math.round(percent)+'%';$('ddsProgressBar').style.width=percent+'%';}
     if (data.message) addLog(data.message);
     if (data.phase === 'error') { $('ddsStatus').textContent = data.message; $('ddsStatus').classList.add('fold-dds-error'); }
   });
@@ -343,8 +329,9 @@
   document.addEventListener('dragleave',event => { if (!event.relatedTarget) $('ddsSelectPackage').classList.remove('dragging'); },true);
   document.addEventListener('drop',event => {
     const file = event.dataTransfer?.files?.[0];
-    if (!file || currentView === 'mods' || $('browser')?.classList.contains('shown') || (currentView !== 'dds' && (currentView === 'vtf' || !/\.dds$/i.test(file.name)))) return;
+    if (!file || currentView === 'skins' || currentView === 'mods' || $('browser')?.classList.contains('shown') || (currentView !== 'dds' && (currentView === 'vtf' || !/\.dds$/i.test(file.name)))) return;
     event.preventDefault(); event.stopImmediatePropagation(); $('dragUI').classList.remove('shown'); $('ddsSelectPackage').classList.remove('dragging');
+    if(dds.busy||window.DDSOriginal?.busy||window.SkinRecovery?.busy)return;
     navigate('dds');
     if (event.dataTransfer.files.length > 1) { clearPackage('一次只能导入一个 DDS 皮肤包。多个皮肤文件请放入同一文件夹或 ZIP 安装包，再导入。'); return; }
     inspectPackage(fold.getDroppedFilePath(file));
@@ -364,7 +351,7 @@
   ipcRenderer.on('gamepath-error',(_event,message) => showToast('游戏目录不可用',true,message));
   ipcRenderer.on('is-running',() => renderDds());
   window.addEventListener('vyra-language-changed',() => {
-    $('ddsLog').textContent = dds.log.map(line => I18n.text(line)).join('\n'); updateClock(); renderDds();
+    updateClock(); renderDds();
   });
   for (const control of document.querySelectorAll('#winbtns > div')) {
     control.addEventListener('keydown',event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); control.click(); } });
@@ -398,6 +385,6 @@
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   });
-  window.Fold = Object.freeze({navigate,setMode,get view(){return currentView;},get mode(){return selectedMode;},DDS:Object.freeze({refresh:refreshDds,select:selectPackage,inspect:inspectPackage,clear:clearPackage,install:installTextures,finishInstallation,clearError(){dds.error="";renderDds();},restore:restoreBackup,setProtection:enabled=>window.DDSGuard.setEnabled(enabled),captureProtection:options=>window.DDSGuard.capture(options),get state(){return {...dds};}})});
+  window.Fold = Object.freeze({navigate,setMode,setSkinFormat,get skinFormat(){return skinFormat;},get view(){return currentView;},get mode(){return selectedMode;},DDS:Object.freeze({adoptImport:adoptDdsImport,refresh:refreshDds,render:()=>renderDds(),select:selectPackage,inspect:inspectPackage,clear:clearPackage,install:installTextures,finishInstallation,clearError(){dds.error="";renderDds();},setProtection:enabled=>window.DDSGuard.setEnabled(enabled),captureProtection:options=>window.DDSGuard.capture(options),get state(){return {...dds};}})});
 })();
 

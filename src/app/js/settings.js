@@ -5,18 +5,53 @@ var Settings = {
 		const shown = document.getElementById("options").classList.contains("shown");
 		const next = typeof state === "boolean" ? state : !shown;
 		if (Settings.saving) return;
+		if (next && shown) return;
 		if (next) {
 			const status = document.getElementById('settingsSaveStatus');
 			if (status) {status.textContent='';status.hidden=true;}
 			Settings.load();
 			document.querySelector('#options .options').scrollTo(0, 0);
-		} else {
-			Settings.cancel();
 		}
 		popups.set("#options", next);
 		if (next) window.DDSGuard?.refresh();
 	},
 	saving: false,
+	cleanSnapshot: null,
+	markClean: () => {Settings.cleanSnapshot=JSON.stringify(Settings.get());},
+	isDirty: () => Settings.cleanSnapshot!==null && Settings.cleanSnapshot!==JSON.stringify(Settings.get()),
+	canLeave: (action) => {
+		if (Settings.saving) return false;
+		if (Settings.skipClosePrompt || !document.getElementById('options').classList.contains('shown') || !Settings.isDirty()) return true;
+		Settings.unsaved?.ask(action); return false;
+	},
+	modStateError: (code, fallback) => ({
+		busy:'settings.modStateChangeBlocked', GAME_RUNNING:'settings.modStateChangeBlocked',
+		PROCESS_QUERY:'settings.modStateProcessUnknown', PROFILE_CHANGED:'settings.modStateContextChanged',
+		AMBIGUOUS_MOD_PROFILE:'settings.modStateDuplicates', MOD_PROFILE_STATE:'settings.modStateInvalid',
+		MOD_PROFILE_ROLLBACK:'settings.modStateRecoveryNeeded'
+	})[code] || fallback,
+	savePatch: async (patch) => {
+		if (Settings.saving || window.mods?.pending?.size) return {ok:false,code:'busy'};
+		const locks = new Map();
+		for (const control of document.querySelectorAll('#options input,#options select,#options button')) {
+			locks.set(control,control.disabled); control.disabled=true;
+		}
+		Settings.saving=true;
+		window.dispatchEvent(new Event('tfx-settings-saving-changed'));
+		try {
+			const response=await ipcRenderer.invoke('settings-save',patch);
+			if (response?.settings && typeof response.settings === 'object') settings={...response.settings};
+			if (!response?.ok || !response.settings || Object.entries(patch).some(([key,value]) => response.settings[key]!==value)) return {ok:false,code:response?.code,error:response?.error};
+			window.dispatchEvent(new CustomEvent('tfx-settings-persisted',{detail:{keys:Object.keys(patch)}}));
+			return response;
+		} catch (error) {
+			return {ok:false,error:String(error?.message||error)};
+		} finally {
+			Settings.saving=false;
+			for (const [control,disabled] of locks) if (control.isConnected) control.disabled=disabled;
+			window.dispatchEvent(new Event('tfx-settings-saving-changed'));
+		}
+	},
 	apply: async () => {
 		if (Settings.saving) return false;
 		const updated = Settings.get();
@@ -32,6 +67,7 @@ var Settings = {
 			settings={...response.settings};
 			if(window.Themes)Themes.apply(settings.theme);
 			if(window.I18n)I18n.commit(settings.uiLanguage);
+			Settings.markClean();
 			Settings.saving=false;Settings.toggle(false);
 			return true;
 		} catch(error) {
@@ -75,6 +111,7 @@ var Settings = {
 		return opts;
 	},
 	load: () => {
+		window.dispatchEvent(new Event('tfx-settings-controls-sync'));
 		if (window.I18n) I18n.load();
 		if (window.Themes) Themes.load();
 		const pathField = document.getElementById('settingsGamePath');
@@ -119,6 +156,7 @@ var Settings = {
 		// reset search
 		Settings.search();
 		search_el.value = "";
+		Settings.markClean();
 
 	},
 	switch: (el, state) => {
@@ -247,7 +285,84 @@ var Settings = {
 			unhide(res[i].item.el);
 		}
 	}
-}
+};
+
+(() => {
+	const control=document.getElementById('independentServerModsToggle');
+	const status=document.getElementById('independentServerModsStatus');
+	if (!control || !status) return;
+	let pending=false, result='', before=settings.independentServerMods===true;
+	const sync=() => {
+		const enabled=pending?before:settings.independentServerMods===true;
+		control.classList.toggle('on',enabled); control.classList.toggle('off',!enabled);
+		control.setAttribute('aria-checked',String(enabled));
+		control.setAttribute('aria-busy',String(pending));
+		status.hidden=!pending&&!result;
+		status.textContent=pending?I18n.t('settings.independentServerModsPending'):result?I18n.t(result):'';
+	};
+	control.addEventListener('click',async () => {
+		if (control.disabled || Settings.saving || pending) return;
+		before=settings.independentServerMods===true; pending=true; result=''; status.classList.remove('is-error'); sync();
+		const response=await Settings.savePatch({independentServerMods:settings.independentServerMods!==true});
+		pending=false;
+		if (!response.ok) {
+			result=Settings.modStateError(response.code,'settings.independentServerModsFailed');
+			status.classList.add('is-error');
+			new Toast({key:'independent-server-mods',scheme:'error',title:I18n.t('settings.independentServerModsFailed'),description:I18n.t(result),timeout:7000});
+		} else result='settings.independentServerModsSaved';
+		sync();
+	});
+	for (const name of ['tfx-settings-controls-sync','tfx-settings-persisted','vyra-settings-restored','vyra-language-changed']) window.addEventListener(name,() => { if (['tfx-settings-controls-sync','vyra-settings-restored'].includes(name)) result=''; sync(); });
+	ipcRenderer.on('changed-settings',(_event,value) => {if (value && Object.prototype.hasOwnProperty.call(value,'independentServerMods')) sync();});
+	sync();
+})();
+
+(() => {
+	const dialog=document.getElementById('settingsUnsavedDialog'), popup=document.getElementById('options');
+	if (!dialog || !popup) return;
+	const buttons={save:document.getElementById('settingsUnsavedSave'),discard:document.getElementById('settingsUnsavedDiscard'),stay:document.getElementById('settingsUnsavedStay')};
+	let nextAction=null,previousFocus=null;
+	const inertStates=new Map();
+	function hide(restoreFocus=true) {
+		dialog.hidden=true; dialog.setAttribute('aria-hidden','true');
+		window.VyraMotion?.cancel(dialog.querySelector('.settings-unsaved-card'));
+		for (const [element,inert] of inertStates) element.inert=inert;
+		inertStates.clear();
+		if (restoreFocus && previousFocus?.isConnected && !previousFocus.closest('[inert]')) previousFocus.focus({preventScroll:true});
+	}
+	function ask(action) {
+		if (!dialog.hidden) return;
+		nextAction=action; previousFocus=document.activeElement;
+		for (const child of popup.children) if (child!==dialog) {inertStates.set(child,child.inert); child.inert=true;}
+		dialog.hidden=false; dialog.setAttribute('aria-hidden','false');
+		window.VyraMotion?.reveal(dialog.querySelector('.settings-unsaved-card'),{duration:240,offset:10});
+		buttons.stay.focus({preventScroll:true});
+	}
+	function perform(action) {
+		Settings.skipClosePrompt=true;
+		try {action?.();} finally {Settings.skipClosePrompt=false;}
+	}
+	buttons.stay.addEventListener('click',() => {nextAction=null;hide();});
+	buttons.discard.addEventListener('click',() => {
+		const action=nextAction;nextAction=null;hide(false);perform(action);
+	});
+	buttons.save.addEventListener('click',async () => {
+		const action=nextAction;nextAction=null;hide(false);
+		if (await Settings.apply()) perform(action);
+		else document.getElementById('apply')?.focus({preventScroll:true});
+	});
+	document.addEventListener('keydown',event => {
+		if (dialog.hidden) return;
+		if (event.key==='Escape') {event.preventDefault();event.stopImmediatePropagation();nextAction=null;hide();return;}
+		if (event.key!=='Tab') return;
+		event.stopImmediatePropagation();
+		const controls=Object.values(buttons).filter(button => !button.disabled);
+		const first=controls[0],last=controls[controls.length-1];
+		if (event.shiftKey && (document.activeElement===first || !dialog.contains(document.activeElement))) {event.preventDefault();last?.focus();}
+		else if (!event.shiftKey && (document.activeElement===last || !dialog.contains(document.activeElement))) {event.preventDefault();first?.focus();}
+	},true);
+	Settings.unsaved=Object.freeze({ask,get shown(){return !dialog.hidden;}});
+})();
 
 function get_dns_preset() {
 	let select = document.getElementById("dns-preset");

@@ -184,12 +184,12 @@ class VtfEngine{
     const newest=(await this.manifests(game.path)).reduce((value,record)=>Math.max(value,Date.parse(record.createdAt)),0);
     const manifest={version:1,id:backupId,name:pkg.name,gamePath:game.path,createdAt:new Date(Math.max(Date.now(),newest+1)).toISOString(),state:"preparing",indexName:INDEX_NAME,beforeHash:hash(game.index),archiveIndex,archiveName:archiveName(archiveIndex),archivePublished:false,stageArchive:`.vyra-vtf-${backupId}.archive.tmp`,stageIndex:`.vyra-vtf-${backupId}.index.tmp`,bytes:pkg.bytes,files:pkg.files.map(({path,bytes,sha256,type,frames})=>({path,bytes,sha256,type,frames})),...(options.skinSwitchId?{skinSwitchId:options.skinSwitchId}:{})};
     await fsp.mkdir(dir,{recursive:true});await fsp.writeFile(path.join(dir,"before-index.vpk"),game.index);await writeJson(file,manifest);
-    const stageArchive=path.join(game.vpkDir,manifest.stageArchive),stageIndex=path.join(game.vpkDir,manifest.stageIndex),destination=path.join(game.vpkDir,manifest.archiveName);
+    const stageArchive=path.join(game.vpkDir,manifest.stageArchive),stageIndex=path.join(game.vpkDir,manifest.stageIndex),destination=path.join(game.vpkDir,manifest.archiveName);let publicationIdentity,publicationLinked=false,publicationStageReleased=false;
     try{
       this.progress("backup",0,"原 common 索引已备份；正在构建新的皮肤归档");let last=-1;
       const packed=await streamArchive(pkg.files,stageArchive,archiveIndex,game.parsed.entries,(done,total,name)=>{const p=Math.floor(done/total*65);if(p!==last){last=p;this.progress("install",p,`打包 ${name}`);}});
       const replacement=new Map(packed.entries.map(e=>[e.path.toLowerCase(),e]));const entries=game.parsed.entries.map(e=>{const key=e.path.toLowerCase(),newEntry=replacement.get(key);replacement.delete(key);return newEntry||e;});entries.push(...replacement.values());
-      const after=serializeIndex(entries),parsedAfter=parseIndex(after);await verifyArchive(parsedAfter.entries,stageArchive,pkg.files,(done,total)=>{const p=65+Math.floor(done/total*25);if(p!==last){last=p;this.progress("verify",p,"正在逐块校验 VTF、材质和模型");}});
+      const after=serializeIndex(entries),parsedAfter=parseIndex(after);
       manifest.afterHash=hash(after);manifest.archiveHash=packed.sha256;manifest.archiveBytes=packed.bytes;manifest.state="pending";await fsp.writeFile(path.join(dir,"after-index.vpk"),after);await writeJson(file,manifest);
       if(options.beforeWrite)await options.beforeWrite({manifest,dir});
       await fsp.writeFile(stageIndex,after,{flag:"wx"});const staged=await fsp.open(stageIndex,"r+");try{await staged.sync();}finally{await staged.close();}
@@ -197,15 +197,50 @@ class VtfEngine{
       // An atomic, no-overwrite link publishes a fully written same-volume file;
       // a process crash can never leave a half-copied archive under a game name.
       // NTFS supports this; incompatible filesystems stop before index changes.
-      await fsp.link(stageArchive,destination);manifest.archivePublished=true;await writeJson(file,manifest);if(await hashFile(destination)!==manifest.archiveHash)throw Error("发布后的皮肤归档校验失败");await fsp.unlink(stageArchive);
+      await assertUnlinkedAncestors(stageArchive,resourcePathError);const stagedArchive=await fsp.lstat(stageArchive);
+      if(!stagedArchive.isFile()||stagedArchive.nlink!==1||stagedArchive.size!==packed.bytes)throw Error("待发布的皮肤归档已变化");
+      publicationIdentity=stagedArchive;await fsp.link(stageArchive,destination);publicationLinked=true;manifest.archivePublished=true;await writeJson(file,manifest);
+      const published=await fsp.lstat(destination);
+      if(!published.isFile()||published.dev!==stagedArchive.dev||published.ino!==stagedArchive.ino||published.size!==stagedArchive.size||published.mtimeMs!==stagedArchive.mtimeMs||published.nlink!==2)throw Error("发布后的皮肤归档身份不一致");
+      // Verify the published inode once, before the live index can reference it.
+      // This same read checks every asset SHA/CRC and the complete archive SHA;
+      // a separate staging read plus another full published hash adds no data
+      // coverage. Index publication still waits for all checks and fsyncs.
+      await verifyArchive(parsedAfter.entries,destination,pkg.files,(done,total)=>{const p=65+Math.floor(done/total*25);if(p!==last){last=p;this.progress("verify",p,"正在逐块校验 VTF、材质和模型");}},{bytes:packed.bytes,sha256:packed.sha256,index:archiveIndex,links:2});
+      const stageIdentity=await fsp.lstat(stageArchive),publishedIdentity=await fsp.lstat(destination);
+      if(stageIdentity.dev!==publishedIdentity.dev||stageIdentity.ino!==publishedIdentity.ino||stageIdentity.nlink!==2||publishedIdentity.nlink!==2)throw Error("发布后的皮肤归档身份不一致");await fsp.unlink(stageArchive);publicationStageReleased=true;
       if(hash(await readIndexFile(game.indexPath))!==manifest.beforeHash)throw Error("common 索引被其他程序修改，安装已取消");if(await this.isGameRunning())throw Error("游戏已启动，安装已取消");await fsp.rename(stageIndex,game.indexPath);
       if(hash(await readIndexFile(game.indexPath))!==manifest.afterHash)throw Error("安装后的 common 索引校验失败");manifest.state="installed";await writeJson(file,manifest);
       this.progress("complete",100,`${pkg.count} 个 VTF 皮肤资源已安装，原归档保持完整`);return {backupId,count:pkg.count,bytes:pkg.bytes,archive:manifest.archiveName};
     }catch(err){
-      try{await this.restoreManifest(manifest,dir,true);manifest.state="rolled-back";manifest.failure=errorText(err);await writeJson(file,manifest);}catch(rollbackError){manifest.failure=errorText(err);manifest.recoveryError=errorText(rollbackError);await writeJson(file,manifest);throw Error(`安装未完成，已保留恢复备份 ${backupId}：${errorText(rollbackError)}`);}
+      try{
+        if(publicationLinked){
+          if(!publicationStageReleased){
+            if(!await this.discardUnreferencedArchive(manifest,dir,publicationIdentity))throw Error("新归档身份或 common 索引已变化，自动恢复已停止以保留当前文件");
+            manifest.archivePublished=false;await writeJson(file,manifest);
+          }else{
+            await assertUnlinkedAncestors(destination,resourcePathError);const published=await fsp.lstat(destination);
+            if(!published.isFile()||published.dev!==publicationIdentity.dev||published.ino!==publicationIdentity.ino||published.nlink!==1)throw Error("新归档身份已变化，自动恢复已停止以保留当前文件");
+          }
+        }
+        await this.restoreManifest(manifest,dir,true);manifest.state="rolled-back";manifest.failure=errorText(err);await writeJson(file,manifest);
+      }catch(rollbackError){manifest.failure=errorText(err);manifest.recoveryError=errorText(rollbackError);await writeJson(file,manifest);throw Error(`安装未完成，已保留恢复备份 ${backupId}：${errorText(rollbackError)}`);}
       throw err;
     }
   },gamePath);}
+  async discardUnreferencedArchive(m,dir,identity){
+    // A failed readback may leave corrupt bytes in our own newly linked inode.
+    // They can be discarded without trusting their hash only while the live
+    // index is unchanged and both private/public names still prove ownership.
+    const vpkDir=path.join(m.gamePath,"vpk"),indexPath=path.join(vpkDir,INDEX_NAME),archivePath=path.join(vpkDir,m.archiveName),stagePath=path.join(vpkDir,m.stageArchive);
+    const before=await fsp.readFile(path.join(dir,"before-index.vpk"));
+    if(hash(before)!==m.beforeHash||parseIndex(before).entries.some(entry=>entry.index===m.archiveIndex)||hash(await readIndexFile(indexPath))!==m.beforeHash)return false;
+    let stage,published;try{await assertUnlinkedAncestors(stagePath,resourcePathError);await assertUnlinkedAncestors(archivePath,resourcePathError);stage=await fsp.lstat(stagePath);published=await fsp.lstat(archivePath);}catch(error){if(error.code==='ENOENT')return false;throw error;}
+    const owned=value=>value.isFile()&&value.dev===identity.dev&&value.ino===identity.ino&&value.nlink===2;
+    if(!owned(stage)||!owned(published))return false;
+    if(hash(await readIndexFile(indexPath))!==m.beforeHash)return false;
+    await fsp.unlink(archivePath);return true;
+  }
   validateManifest(m,backupId,gamePath){if(m.version!==1||m.id!==backupId||!equalPath(m.gamePath,gamePath)||!Number.isFinite(Date.parse(m.createdAt))||!["preparing","pending","installed","restored","rolled-back","cancelled"].includes(m.state)||m.indexName!==INDEX_NAME||!Number.isInteger(m.archiveIndex)||m.archiveIndex<0||m.archiveIndex>999||m.archiveName!==archiveName(m.archiveIndex)||m.stageArchive!==`.vyra-vtf-${backupId}.archive.tmp`||m.stageIndex!==`.vyra-vtf-${backupId}.index.tmp`||!Array.isArray(m.files)||m.files.length>MAX_FILES||!/^[a-f0-9]{64}$/.test(m.beforeHash)||m.afterHash&&!/^[a-f0-9]{64}$/.test(m.afterHash)||m.archiveHash&&!/^[a-f0-9]{64}$/.test(m.archiveHash))throw Error("VTF 备份记录无效或不属于当前游戏目录");const seen=new Set();for(const file of m.files){const clean=safeAssetPath(file.path).toLowerCase();if(seen.has(clean)||!Number.isSafeInteger(file.bytes)||file.bytes<=0||file.bytes>MAX_BYTES||!/^[a-f0-9]{64}$/.test(file.sha256))throw Error("VTF 备份记录无效或不属于当前游戏目录");seen.add(clean);}}
   async restoreManifest(m,dir,automatic=false){
     this.validateManifest(m,m.id,m.gamePath);const vpkDir=path.join(m.gamePath,"vpk"),indexPath=path.join(vpkDir,INDEX_NAME),archivePath=path.join(vpkDir,m.archiveName),before=await fsp.readFile(path.join(dir,"before-index.vpk"));

@@ -85,7 +85,7 @@ class DdsProtection {
       const stored=await this.readState(gamePath);
       const common={enabled:stored.enabled,gamePath:path.resolve(gamePath),...this.counts(active),snapshot:stored.snapshot,configPath:this.configPath()};
       if (!active.length) return {...common,state:"inactive"};
-      if (common.pendingCount) return {...common,state:"error",reason:"有未完成的皮肤安装，请先在对应的 DDS 或 VTF 安装页面恢复备份"};
+      if (common.pendingCount) return {...common,state:"error",reason:"有未完成的皮肤安装，请先在“皮肤安装 → 武器库”恢复未完成的操作"};
       let current;
       try {current=await this.readConfig();} catch(e) {return {...common,state:e.message.startsWith("未找到")?"missing-config":"error",reason:message(e)};}
       if (!stored.snapshot) return {...common,state:"unrecorded"};
@@ -141,7 +141,7 @@ class DdsProtection {
       const active=await this.active(gamePath);
       if (!active.length) return {ok:true,restored:false,state:"inactive"};
       // Incomplete writes of either format must be recovered even if disabled.
-      if (active.some(b=>["pending","preparing"].includes(b.state))) throw Error("有未完成的皮肤安装，请在对应的 DDS 或 VTF 安装页面恢复备份后再启动游戏");
+      if (active.some(b=>["pending","preparing"].includes(b.state))) throw Error("有未完成的皮肤安装，请在“皮肤安装 → 武器库”恢复未完成的操作后再启动游戏");
       const stored=await this.readState(gamePath);
       if (!stored.enabled) return {ok:true,restored:false,state:"disabled"};
       if (!stored.snapshot) return {ok:true,restored:false,state:"unrecorded",reason:"已安装皮肤，但尚未记录兼容性设置；可在偏好设置中记录当前设置"};

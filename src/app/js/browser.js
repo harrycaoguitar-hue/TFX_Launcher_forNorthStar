@@ -397,6 +397,7 @@ function normalize(value) {
     const name = result.fancy_name || result.name || "";
     if (result.source !== "local") finishJob();
     else {setButtons(true); reconcile(); if (window.mods?.latest) mods.load(mods.latest);}
+    if (result.importOrigin === "unified") return;
     if (result.malformed) feedback("malformed:" + name, {scheme:"warning", title:legacy("toast.title.malformed"), description:name + " " + legacy("toast.desc.malformed"), timeout:8000});
     feedback("installed:" + name, {scheme:"success", title:legacy("toast.title.installed"), description:name + " " + legacy("toast.desc.installed")});
   });

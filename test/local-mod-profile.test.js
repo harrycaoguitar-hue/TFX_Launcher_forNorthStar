@@ -1,7 +1,7 @@
 'use strict';
 const os = require("node:os");
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path');
-const {importLocalMod}=require('../src/modules/local-mod-import');
+const {importLocalMod,treeDigest,treeDigestAsync}=require('../src/modules/local-mod-import');
 const base=fs.mkdtempSync(path.join(os.tmpdir(), "tfx-local-mod-profile-"));
 function fixture(){const root=fs.mkdtempSync(path.join(base,'case-')),game=path.join(root,'game'),profile=path.join(game,'Custom Profile'),source=path.join(root,'source'),cache=path.join(root,'cache');fs.mkdirSync(profile,{recursive:true});fs.mkdirSync(source);fs.writeFileSync(path.join(game,'NorthstarLauncher.exe'),'fixture');fs.writeFileSync(path.join(source,'mod.json'),JSON.stringify({Name:'Personal.Example',Version:'1.0.0'}));return {root,game,profile,source,cache};}
 test('local import targets the selected custom profile and leaves default profile absent',async()=>{const f=fixture();let guards=0;const r=await importLocalMod(f.source,{gamePath:f.game,profileDirectory:f.profile,cacheRoot:f.cache,guard:async()=>{guards++;}});assert.equal(r.ok,true);assert(fs.existsSync(path.join(f.profile,'mods/source/mod.json')));assert.equal(fs.existsSync(path.join(f.game,'R2Northstar')),false);assert(guards>=3);});
@@ -12,6 +12,17 @@ test('definition byte limit remains 4 MiB and over-limit definitions fail before
 test('invalid UTF-8 manifest rejects import before creating game mod directories',async()=>{const f=fixture();const bytes=Buffer.concat([Buffer.from('{"name":"'),Buffer.from([0xc0,0xaf]),Buffer.from('"}')]);fs.writeFileSync(path.join(f.source,'manifest.json'),bytes);await assert.rejects(importLocalMod(f.source,{gamePath:f.game,profileDirectory:f.profile,cacheRoot:f.cache}),error=>error.code==='definition'&&/UTF-8/.test(error.message));assert.equal(fs.existsSync(path.join(f.profile,'mods')),false);assert.deepEqual(fs.readFileSync(path.join(f.source,'manifest.json')),bytes);});
 test('local replacement preserves an installed mod changed while staging is in progress',async()=>{const f=fixture(),target=path.join(f.profile,'mods/source');fs.mkdirSync(target,{recursive:true});fs.writeFileSync(path.join(target,'mod.json'),'{"Name":"Personal.Old","Version":"0"}');const foreign=Buffer.from('{"Name":"Personal.External","Version":"9"}');let guards=0;await assert.rejects(importLocalMod(f.source,{gamePath:f.game,profileDirectory:f.profile,cacheRoot:f.cache,guard:async()=>{if(++guards===3)fs.writeFileSync(path.join(target,'mod.json'),foreign);}}),/已被其他程序修改/);assert.deepEqual(fs.readFileSync(path.join(target,'mod.json')),foreign);});
 test('local rollback preserves foreign edits and retains old recovery snapshots',async()=>{const f=fixture();fs.rmSync(path.join(f.source,'mod.json'));for(const name of ['One','Two']){const source=path.join(f.source,name),target=path.join(f.profile,'mods',name);fs.mkdirSync(source,{recursive:true});fs.mkdirSync(target,{recursive:true});fs.writeFileSync(path.join(source,'mod.json'),JSON.stringify({Name:'Personal.'+name,Version:'2'}));fs.writeFileSync(path.join(target,'mod.json'),JSON.stringify({Name:'Personal.'+name,Version:'1'}));}const foreign=Buffer.from('{"Name":"Personal.Foreign","Version":"99"}');let guards=0;await assert.rejects(importLocalMod(f.source,{gamePath:f.game,profileDirectory:f.profile,cacheRoot:f.cache,guard:async()=>{if(++guards===4){fs.writeFileSync(path.join(f.profile,'mods/One/mod.json'),foreign);throw Error('interrupted second mod');}}}),error=>error.code==='recovery');assert.deepEqual(fs.readFileSync(path.join(f.profile,'mods/One/mod.json')),foreign);assert(fs.readdirSync(path.join(f.profile,'mods')).some(name=>name.startsWith('.vyra-import-')));});
+test('asynchronous tree digest matches the conflict baseline and yields while hashing large Mod files',async()=>{
+  const f=fixture();fs.mkdirSync(path.join(f.source,'materials'));fs.writeFileSync(path.join(f.source,'materials','large.vtf'),Buffer.alloc(8*1024*1024,0xa5));
+  const expected=treeDigest(f.source);let pulses=0;const timer=setInterval(()=>pulses++,1);
+  let actual;try{actual=await treeDigestAsync(f.source);}finally{clearInterval(timer);}
+  assert.equal(actual,expected);assert(pulses>=2,'main loop must remain responsive during chunked hashing');
+  const link=path.join(f.source,'linked');fs.symlinkSync(f.profile,link,'junction');await assert.rejects(treeDigestAsync(f.source),/不安全/);
+});
+test('a trusted prepared snapshot avoids an extra cache copy and remains unchanged after transactional install',async()=>{
+  const f=fixture(),before=treeDigest(f.source);const result=await importLocalMod(f.source,{gamePath:f.game,profileDirectory:f.profile,cacheRoot:f.cache,preparedSnapshot:true});
+  assert.equal(result.ok,true);assert.equal(fs.existsSync(f.cache),false);assert.equal(treeDigest(f.source),before);assert.deepEqual(fs.readFileSync(path.join(f.profile,'mods/source/mod.json')),fs.readFileSync(path.join(f.source,'mod.json')));
+});
 
 test.after(() => {
   assert.equal(path.dirname(base), path.resolve(os.tmpdir()));

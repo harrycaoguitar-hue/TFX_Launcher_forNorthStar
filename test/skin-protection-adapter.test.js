@@ -14,6 +14,7 @@ function fixture(format){
   let resourceAdapter;
   mocks["./skin-resource-download"]={register(_kind,options){resourceAdapter=options;}};
   mocks["./offline-skin-pack"]={OfflineSkinPack:class{},productionDirectories:()=>[]};
+  mocks["./skin-conflict-preview"]={forStatus:async options=>{calls.push(["preview",options.format,options.packageId]);return options.packageId&&options.isCurrent()?{version:1,packageId:options.packageId,format:options.format,counts:{replace:1,restore:0,modConflicts:0},items:[],warnings:[],complete:false,blocked:false}:null;}};
   const filename=path.join(__dirname,"../src/modules",format+".js"),context={require:id=>Object.hasOwn(mocks,id)?mocks[id]:require(id),__dirname:path.dirname(filename),module:{exports:{}},console};
   vm.runInNewContext(fs.readFileSync(filename,"utf8"),context,{filename});
   const event={sender:{isDestroyed:()=>false,send(){}}};
@@ -38,6 +39,9 @@ test("automatic installation rejects a game path changed during compatibility ca
   for(const format of ["dds","vtf"]){const f=fixture(format);await f.callbacks.get(format+"-inspect")(f.event,{path:path.join(f.game,"Fixture.zip")});f.protection.prepareCapture=async()=>{f.saved.gamepath=path.join(f.game,"changed");return {};};f.calls.length=0;await assert.rejects(f.resourceAdapter.install(f.game,"package-id",{packageId:"package-id"}),/选择|校验/);assert(!f.calls.some(item=>["install","commit"].includes(item[0])));}
 });
 test("VTF restore and deletion responses include unified protection and bind operation game path",async()=>{const f=fixture("vtf");for(const action of ["restore","delete-backup"]){const result=await f.callbacks.get("vtf-"+action)(f.event,{backupId:"backup-id"});assert.equal(result.ok,true);assert.equal(result.protection.vtfCount,1);}});
+test("DDS and VTF previews bind to the current inspected selection and clear stale preview state",async()=>{
+  for(const format of ["dds","vtf"]){const f=fixture(format),imported=await f.callbacks.get(format+"-inspect")(f.event,{path:path.join(f.game,"Fixture.zip")});assert.equal(imported.ok,true);assert.equal(imported.conflictPreview.packageId,"package-id");const preview=await f.callbacks.get(format+"-preview")(f.event,{packageId:"package-id",selectionRevision:imported.selectionRevision});assert.equal(preview.ok,true);assert.equal(preview.conflictPreview.format,format);const stale=await f.callbacks.get(format+"-preview")(f.event,{packageId:"different"});assert.equal(stale.ok,false);assert.equal(stale.conflictPreview,null);await f.callbacks.get(format+"-clear")(f.event);const cleared=await f.callbacks.get(format+"-status")();assert.equal(cleared.package,null);assert.equal(cleared.conflictPreview,null);}
+});
 
 test.after(() => {
   assert.equal(path.dirname(directory), path.resolve(os.tmpdir()));

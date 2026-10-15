@@ -9,10 +9,11 @@ function fixture(states={},nsargs=""){
   const put=(name,version="1.0",folder=name,pack)=>{const dest=path.join(profile,pack?"packages":"mods",...(pack?[pack,"mods"]:[]),folder,"mod.json");fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,JSON.stringify({Name:name,Version:version}));if(pack)fs.writeFileSync(path.join(profile,"packages",pack,"manifest.json"),JSON.stringify({name:"Package",version_number:"9.0"}));return dest;};
   for(const name of adapter.CORE_NAMES)put(name,"1.18.0");put("Personal.Off");put("Personal.On");
   const settings={gamepath,nsargs},events=[],fakefs={...fs,watch:()=>({on(){},close(){}})},noop=()=>{},lang=x=>x;lang.getLocale=()=>"zh-CN";
-  const app=new EventEmitter();app.getPath=()=>userData;
-  const modules={"fs-extra":fakefs,"./local-mod-import":{importLocalMod:noop,messages:{}},electron:{app,ipcMain:{on:noop,handle:noop},dialog:{}},"./json":p=>{try{return JSON.parse(fs.readFileSync(p));}catch(_){return false;}},"./update":{northstar:{updating:false}},"./version":{northstar:()=>"1.18.0"},"./settings":()=>settings,"./mod-added-times":require("../src/modules/mod-added-times"),"./mod-enabled-state":adapter,"./northstar-region":require("../src/modules/northstar-region"),"./launch-session":require("../src/modules/launch-session"),"./console":{error:noop,ok:noop},"../win":()=>({log:x=>events.push(["log",x]),send:(...x)=>events.push(x)}),"../lang":lang,"./packages":{list:()=>({})}};
+  const app=new EventEmitter();app.getPath=()=>userData;let gateBusy=false;
+  const gate={get busy(){return gateBusy;},async run(_label,action){if(gateBusy)throw Error("Operation already active");gateBusy=true;try{return await action();}finally{gateBusy=false;}}};
+  const modules={"fs-extra":fakefs,"./dds-operation-gate":gate,"./is_running":{snapshot:async()=>({ok:true,processes:[]})},"./local-mod-import":{importLocalMod:noop,messages:{}},electron:{app,ipcMain:{on:noop,handle:noop},dialog:{}},"./json":p=>{try{return JSON.parse(fs.readFileSync(p));}catch(_){return false;}},"./update":{northstar:{updating:false}},"./version":{northstar:()=>"1.18.0"},"./settings":()=>settings,"./mod-added-times":require("../src/modules/mod-added-times"),"./mod-enabled-state":adapter,"./northstar-region":require("../src/modules/northstar-region"),"./launch-session":require("../src/modules/launch-session"),"./console":{error:noop,ok:noop},"../win":()=>({log:x=>events.push(["log",x]),send:(...x)=>events.push(x)}),"../lang":lang,"./packages":{list:()=>({})}};
   const context={require:id=>Object.hasOwn(modules,id)?modules[id]:require(id),module:{exports:{}},process:{pid:process.pid,argv:[]},Buffer,setTimeout,clearTimeout};vm.runInNewContext(source,context,{filename:"mods.js"});
-  return {base,gamepath,profile,file,put,settings,events,app,mods:context.module.exports,read:()=>JSON.parse(fs.readFileSync(file)),bytes:()=>fs.readFileSync(file)};
+  return {base,gamepath,profile,file,put,settings,events,app,mods:context.module.exports,setGateBusy:value=>{gateBusy=value;},read:()=>JSON.parse(fs.readFileSync(file)),bytes:()=>fs.readFileSync(file)};
 }
 test("both schemas display actual enabled booleans and exact core directories",()=>{
   for(const states of [{"Personal.Off":false,"Personal.On":true},{Version:1,"Personal.Off":{"1.0":false},"Personal.On":{"1.0":true}}]){
@@ -56,6 +57,14 @@ test("invalid requests, malformed configs, and unknown versions reject without w
 });
 test("missing remembered game folder does not prevent module initialization",()=>{
   const f=fixture();fs.rmSync(f.gamepath,{recursive:true});f.settings.gamepath=path.join(f.base,"missing-game");assert.deepEqual(Array.from(f.mods.list({readOnly:true}).all),[]);
+});
+test("both schemas preserve state during shared intake and active game operations, then permit guarded updates",async()=>{
+  for(const states of [{"Personal.Off":false},{Version:1,"Personal.Off":{"1.0":false}}]){
+    const f=fixture(states),before=f.bytes(),request={names:["Personal.Off"],enabled:true};
+    f.mods.sharedImportBusy=true;assert.equal(f.mods.setState(request).code,"busy");assert.equal((await f.mods.setStateAsync(request)).code,"busy");assert.deepEqual(f.bytes(),before);
+    f.mods.sharedImportBusy=false;f.setGateBusy(true);assert.equal(f.mods.setState(request).code,"busy");assert.deepEqual(f.bytes(),before);
+    f.setGateBusy(false);assert.equal((await f.mods.setStateAsync(request)).ok,true);assert.equal(f.mods.modfile.get("Personal.Off"),true);
+  }
 });
 
 test.after(() => {

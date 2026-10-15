@@ -17,6 +17,8 @@ var mods;
   const normalized = value => String(value ?? "").normalize("NFKC").toLocaleLowerCase();
   const copy = key => I18n.t("mods." + key);
   const mode = value => ["added", "name", "enabled"].includes(value) ? value : "added";
+  const context = () => JSON.stringify([settings.gamepath || '', settings.northstarRegion || 'cn', settings.independentServerMods === true]);
+  const settingsBusy = () => Boolean(window.Settings?.saving);
   const encode = value => encodeURIComponent(String(value ?? "")).replace(/_/g, "%5F").replace(/%/g, "_");
   const label = mod => mod.package?.manifest?.name || mod.package?.package_name || mod.manifest_name || mod.name;
   const key = mod => mod.package ? "package-" + encode([mod.package.author, mod.package.package_name, mod.package.version || mod.package.manifest?.version_number || ""].join("/")) : "local-" + encode(mod.name);
@@ -70,7 +72,7 @@ var mods;
   function viewState(id) {
     const group = current(id), card = cards.get(id);
     if (!group || !card) return;
-    const saving = pending.get(id), message = feedback.get(id);
+    const queued = pending.get(id), saved = feedback.get(id), saving = queued?.context === context() ? queued : null, message = saved?.context === context() ? saved : null;
     const enabled = saving ? saving.enabled : !group.disabled;
     const required = group.required;
     const controllable = group.stateControl;
@@ -79,19 +81,19 @@ var mods;
     const flags = {"mod-is-disabled":!enabled, "mod-is-pending":Boolean(saving), "mod-is-saving":Boolean(saving?.visible), "mod-save-confirmed":Boolean(!saving && message?.type === "saved"), "mod-save-error":Boolean(!saving && message?.type === "error")};
     for (const [className, active] of Object.entries(flags)) card.classList.toggle(className, active);
     toggle.classList.toggle("on", enabled);
-    toggle.disabled = required || !available || !controllable;
+    toggle.disabled = required || !available || !controllable || settingsBusy();
     toggle.hidden = !controllable;
     toggle.setAttribute("aria-checked", String(enabled));
     toggle.setAttribute("aria-busy", String(Boolean(saving)));
-    toggle.setAttribute("aria-disabled", String(required || !available || !controllable || Boolean(saving)));
+    toggle.setAttribute("aria-disabled", String(required || !available || !controllable || Boolean(saving) || settingsBusy()));
     toggle.setAttribute("aria-label", copy(required ? "coreComponent" : enabled ? "disableLabel" : "enableLabel") + " " + label(group));
     toggle.title = required ? copy("coreHint") : "";
     const state = required ? "coreComponent" : saving?.slow ? "waiting" : saving?.visible ? enabled ? "enabling" : "disabling" : !saving && message?.type === "error" ? "saveFailed" : enabled ? "enabled" : "disabled";
     status.textContent = controllable ? copy(state) : I18n.text("插件");
     status.title = message?.error || "";
-    for (const button of card.querySelectorAll(".remove,.update")) {button.disabled = !available || required; button.setAttribute("aria-disabled", String(required || !available || Boolean(saving)));}
+    for (const button of card.querySelectorAll(".remove,.update")) {button.disabled = !available || required || settingsBusy(); button.setAttribute("aria-disabled", String(required || !available || Boolean(saving) || settingsBusy()));}
     const remove = card.querySelector(".remove");
-    remove.disabled = required || !available;
+    remove.disabled = required || !available || settingsBusy();
     remove.title = required ? copy("coreHint") : "";
   }
 
@@ -214,16 +216,17 @@ var mods;
   }
 
   async function save(requests, states) {
-    if (!states.length || states.some(item => pending.has(item.key))) return false;
-    const token = ++sequence, started = Date.now();
-    const touched = states.map(item => ({...item, token, visible:false, slow:false}));
+    if (settingsBusy() || !states.length || states.some(item => pending.has(item.key))) return false;
+    const token = ++sequence, started = Date.now(), requestContext=context();
+    const touched = states.map(item => ({...item, token, context:requestContext, visible:false, slow:false}));
     for (const item of touched) {clearFeedback(item.key); pending.set(item.key, item); viewState(item.key);}
     const timers = [setTimeout(() => {for (const item of touched) {item.visible = true; viewState(item.key);}}, 140), setTimeout(() => {for (const item of touched) {item.slow = true; viewState(item.key);}}, 8000)];
     document.getElementById("toggleall")?.setAttribute("aria-disabled", "true");
-    let failure = "";
+    let failure = "", stale=false;
     try {
       for (const request of requests) {
         const response = await invokeState(request);
+        if (requestContext !== context()) {stale=true; break;}
         if (Array.isArray(response?.mods?.all)) load(response.mods);
         if (!response?.ok) throw new Error(response?.error || copy("saveFailed"));
         for (const selection of request.selections || [request]) {
@@ -242,19 +245,20 @@ var mods;
       for (const item of touched) {
         if (pending.get(item.key)?.token !== token) continue;
         pending.delete(item.key);
-        const message = {type:failure ? "error" : "saved", error:failure};
+        if (stale || requestContext !== context()) {clearFeedback(item.key); continue;}
+        const message = {type:failure ? "error" : "saved", error:failure, context:requestContext};
         feedback.set(item.key, message);
         if (!failure) message.timer = setTimeout(() => {if (feedback.get(item.key) === message) {feedback.delete(item.key); viewState(item.key);}}, 950);
       }
       load(snapshot);
       document.getElementById("toggleall")?.setAttribute("aria-disabled", String(pending.size > 0));
     }
-    return !failure;
+    return !failure && !stale;
   }
 
   function toggleGroup(group) {
     const id = key(group);
-    if (!available || group.stateControl === false || pending.has(id) || protectedMod(group)) return false;
+    if (settingsBusy() || !available || group.stateControl === false || pending.has(id) || protectedMod(group)) return false;
     const enabled = Boolean(group.disabled);
     const packageInfo = group.package ? {author:group.package.author, package_name:group.package.package_name, version:group.package.version || group.package.manifest?.version_number} : null;
     return save([{names:names(group), enabled, ...(packageInfo ? {package:packageInfo} : {})}], [{key:id, enabled}]);
@@ -262,14 +266,14 @@ var mods;
 
   function toggle(name) {
     if (name !== "allmods") {const record = snapshot.all.find(mod => mod.name === name); return record ? toggleGroup(current(key(record))) : false;}
-    if (!available || pending.size || !confirm(I18n.t("mods.confirmToggleAll"))) return false;
+    if (settingsBusy() || !available || pending.size || !confirm(I18n.t("mods.confirmToggleAll"))) return false;
     const candidates = [...groups.values()].filter(group => !group.required && group.stateControl);
     const requests = candidates.map(group => ({enabled:Boolean(group.disabled), names:names(group), ...(group.package ? {package:{author:group.package.author, package_name:group.package.package_name, version:group.package.version || group.package.manifest?.version_number}} : {})}));
     return save([{selections:requests}], candidates.map(group => ({key:key(group), enabled:Boolean(group.disabled)})));
   }
 
   function remove(name, packageInfo) {
-    if (!available) return false;
+    if (settingsBusy() || !available) return false;
     if (name === "allmods") {
       if (pending.size || !confirm(I18n.t("mods.confirmRemoveAll"))) return false;
     } else {
@@ -298,5 +302,6 @@ var mods;
   document.getElementById("modSearchClear")?.addEventListener("click", clearSearch);
   document.getElementById("modSearchEmptyClear")?.addEventListener("click", clearSearch);
   window.addEventListener("vyra-language-changed", () => load(snapshot));
+  window.addEventListener("tfx-settings-saving-changed", () => {for (const id of cards.keys()) viewState(id);});
   ipcRenderer.on("changed-settings", (_event, update) => {if (update && Object.hasOwn(update, "modSort")) {settings.modSort = mode(update.modSort); load(snapshot);}});
 })();

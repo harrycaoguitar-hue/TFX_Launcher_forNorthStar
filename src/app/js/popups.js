@@ -112,6 +112,8 @@ popups.set = (popup, state, auto_close_all = true) => {
 	state = typeof state === 'boolean' ? state : !wasShown;
 	if(window.Settings?.saving)return wasShown;
 	if (wasShown === state) return state;
+	const settingsShown=document.getElementById('options')?.classList.contains('shown');
+	if (settingsShown && ((popup_el.id==='options' && !state) || (state && auto_close_all && popup_el.id!=='options')) && window.Settings?.canLeave && !Settings.canLeave(() => popups.set(popup_el,state,auto_close_all))) return wasShown;
 	// Capture before changing classes, including a partially completed close.
 	const start = VyraMotion.frame(popup_el);
 	VyraMotion.cancel(popup_el);

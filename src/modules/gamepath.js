@@ -38,8 +38,8 @@ function publish(window, selected, source, checking=false) {
   northstarInstalled:!!candidate && (()=>{try{const stat=fs.lstatSync(path.join(candidate,"NorthstarLauncher.exe"));return stat.isFile()&&!stat.isSymbolicLink();}catch(_){return false;}})()
  });
 }
-function accept(window, folder, source) {
- settings().save({gamepath:folder, zip:path.join(folder,"northstar.zip")});
+async function accept(window, folder, source) {
+ await settings().save({gamepath:folder, zip:path.join(folder,"northstar.zip")});
  publish(window, folder, source);
  window.send("newpath", folder);
  version.send_info();
@@ -59,9 +59,9 @@ gamepath.set = async (window, forceDialog=false) => {
   if (!forceDialog) {
    publish(window, saved, "checking", true);
    const existing = validPath(saved);
-   if (existing) {accept(window, existing, "saved"); return true;}
+   if (existing) {await accept(window, existing, "saved"); return true;}
    const detected = validPath(await findgame());
-   if (detected) {accept(window, detected, "automatic"); return true;}
+   if (detected) {await accept(window, detected, "automatic"); return true;}
   }
   publish(window, saved, "manual");
   // Cancel keeps the app open and preserves a previously valid selection.
@@ -77,7 +77,7 @@ gamepath.set = async (window, forceDialog=false) => {
     await window.alert("所选目录中未找到 Titanfall2.exe。请选择游戏安装根目录（也可选择 Steam 游戏库，TFX 会查找其中的泰坦陨落 2）。");
     continue;
    }
-   accept(window, selected, "manual"); return true;
+   await accept(window, selected, "manual"); return true;
   }
  } catch (error) {
   console.error("Game directory selection failed:", error);
@@ -87,10 +87,10 @@ gamepath.set = async (window, forceDialog=false) => {
  } finally {gamepath.setting = false;}
 };
 let lost = false;
-setInterval(() => {
+setInterval(async () => {
  if (gamepath.setting || !settings().gamepath) return;
  if (gamepath.exists()) {
-  if (lost) {lost=false; accept(win(),validPath(settings().gamepath),"restored");}
+  if (lost) {try {await accept(win(),validPath(settings().gamepath),"restored"); lost=false;} catch (_) {}}
   return;
  }
  if (!lost) {lost=true; publish(win(),settings().gamepath,"unavailable"); win().send("gamepath-lost");}

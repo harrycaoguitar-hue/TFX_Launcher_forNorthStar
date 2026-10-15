@@ -10,41 +10,25 @@ const json = require("./json");
 const normalize = value => require("../preferences").normalize(value, lang.defaultLocale);
 const preferenceDefaults = Object.freeze({
 	theme: "aurora", uiLanguage: lang.defaultLocale || "zh-CN", modSort: "added", exitAfterLaunch: false,
-	northstarRegion: "cn", nsupdate: true, originkill: false, nsargs: "-multiple",
+	northstarRegion: "cn", independentServerMods: false, nsupdate: true, originkill: false, nsargs: "-multiple",
 	excludes: ["ns_startup_args.txt", "ns_startup_args_dedi.txt"]
 });
 
-ipcMain.handle("settings-restore-defaults", () => {
-	const restored = {...settings, ...preferenceDefaults, excludes: [...preferenceDefaults.excludes]};
-	const filename = path.join(app.getPath("appData"), "fold.json");
-	const temporary = filename + ".restore-" + require("crypto").randomUUID() + ".tmp";
-	try {
-		const bytes = Buffer.from(JSON.stringify(restored), "utf8");
-		fs.writeFileSync(temporary, bytes, {flag: "wx"});
-		if (!fs.readFileSync(temporary).equals(bytes)) throw Error("Settings verification failed");
-		fs.renameSync(temporary, filename);
-		// Commit memory only after replacement succeeds; a disk failure retains
-		// both the original persisted preferences and the running configuration.
-		settings = restored;
-		lang.setLocale(settings.uiLanguage);
-		return {ok: true, settings: {...settings, excludes: [...settings.excludes]}};
-	} catch (error) {
-		return {ok: false, error: error.message || String(error)};
-	} finally {
-		try {if (fs.existsSync(temporary)) fs.unlinkSync(temporary);} catch (_) {}
-	}
+ipcMain.handle("settings-restore-defaults", async () => {
+	try {return {ok: true, settings: await saveAsync({...preferenceDefaults, excludes: [...preferenceDefaults.excludes]}, false)};}
+	catch (error) {return settingsFailure(error);}
 });
 
-ipcMain.on("save-settings", (event, obj) => {
-	try { save(obj, false); }
+ipcMain.on("save-settings", async (event, obj) => {
+	try { await saveAsync(obj, false); }
 	catch (error) {
 		win().send("changed-settings", {...settings});
 		win().send("unknown-error", {message: error.message, stack: error.stack});
 	}
 })
-ipcMain.handle("settings-save", (_event, obj) => {
-	try { save(obj, false); return {ok: true, settings: {...settings}}; }
-	catch (error) { return {ok: false, error: error.message || String(error)}; }
+ipcMain.handle("settings-save", async (_event, obj) => {
+	try {return {ok: true, settings: await saveAsync(obj, false)};}
+	catch (error) {return settingsFailure(error);}
 });
 
 // base settings
@@ -55,6 +39,7 @@ var settings = {
 	modSort: "added",
 	exitAfterLaunch: false,
 	northstarRegion: "cn",
+	independentServerMods: false,
 	nsupdate: true,
 	originkill: false,
 	nsargs: "-multiple",
@@ -111,7 +96,7 @@ lang.setLocale(settings.uiLanguage);
 //
 // you can also pass a settings object to the function and it'll try and
 // merge it together with the already existing settings
-let save = (obj = {}, notify_renderer = true) => {
+let saveDirect = (obj = {}, notify_renderer = true) => {
 	let settings_content = normalize({
 		...settings, ...obj
 	});
@@ -130,6 +115,7 @@ let save = (obj = {}, notify_renderer = true) => {
 	let temporary_file = settings_file + ".save-" + require("crypto").randomUUID() + ".tmp";
 	try {
 		fs.writeFileSync(temporary_file, stringified_settings, {flag: "wx"});
+		if (fs.readFileSync(temporary_file, "utf8") !== stringified_settings) throw Error("Settings verification failed");
 		fs.renameSync(temporary_file, settings_file);
 	} finally {
 		try { if (fs.existsSync(temporary_file)) fs.unlinkSync(temporary_file); } catch (_) {}
@@ -145,6 +131,36 @@ let save = (obj = {}, notify_renderer = true) => {
 	return {...settings};
 }
 
+function settingsFailure(error) {return {ok: false, error: error.message || String(error), ...(error.code ? {code: error.code} : {}), settings: {...settings}};}
+function requiresTransition(previous, next) {
+	return previous.northstarRegion !== next.northstarRegion || previous.independentServerMods !== next.independentServerMods ||
+		(previous.independentServerMods || next.independentServerMods) && (previous.gamepath !== next.gamepath || previous.nsargs !== next.nsargs);
+}
+let savingContext = false;
+async function saveAsync(obj = {}, notify_renderer = true) {
+	const previous = {...settings}, next = normalize({...settings, ...obj});
+	if (!requiresTransition(previous, next)) return saveDirect(obj, notify_renderer);
+	if (savingContext) throw Object.assign(Error("Another server selection is being saved. Please retry."), {code: "busy"});
+	savingContext = true;
+	try {
+		const gate = require("./dds-operation-gate"), mods = require("./mods"), packages = require("./packages");
+		if (gate.busy || mods.sharedImportBusy || mods.isImportBusy() || packages.activeCount > 0) throw Object.assign(Error("An installation or launch is in progress. Finish it before changing server Mod settings."), {code: "busy"});
+		return await gate.run("server-mod-settings", async () => {
+			const stopped = await require("./is_running").snapshot();
+			if (!stopped?.ok) throw Object.assign(Error("Unable to check whether the game is running. Please retry."), {code: "PROCESS_QUERY"});
+			if (require("./launch-session").hasGame(stopped)) throw Object.assign(Error("Close Titanfall 2 before switching servers or independent Mod settings."), {code: "GAME_RUNNING"});
+			if (settings.gamepath !== previous.gamepath || settings.nsargs !== previous.nsargs || settings.northstarRegion !== previous.northstarRegion || settings.independentServerMods !== previous.independentServerMods) throw Object.assign(Error("The game profile changed. Please retry."), {code: "PROFILE_CHANGED"});
+			if (mods.sharedImportBusy || mods.isImportBusy() || packages.activeCount > 0) throw Object.assign(Error("A Mod is being installed. Please retry when it completes."), {code: "busy"});
+			const result = require("./server-mod-profiles").transition(previous, next, () => saveDirect(obj, false));
+			// Acknowledgements follow the durable commit. Refresh failures cannot
+			// turn a successful disk commit into a misleading failed save.
+			try {win().send("changed-settings", obj); ipcMain.emit("gui-getmods");} catch (_) {}
+			return result;
+		});
+	} finally {savingContext = false;}
+}
+let save = (obj = {}, notify_renderer = true) => requiresTransition(settings, normalize({...settings, ...obj})) ? saveAsync(obj, notify_renderer) : saveDirect(obj, notify_renderer);
+
 // Never allow a stale or edited config value to select an undefined palette.
 function normalize_theme(value) {
 	const themes = ["aurora", "abyss", "nebula", "sakura", "ember", "grove", "sandstone", "graphite", "glacier", "mist"];
@@ -156,6 +172,7 @@ function normalize_mod_sort(value) {
 
 // sets `key` in `settings` to `value`
 let set = (key, value) => {
+	if (["northstarRegion", "independentServerMods"].includes(key) || settings.independentServerMods && ["gamepath", "nsargs"].includes(key)) throw Error("Use settings.saveAsync to change the selected server or independent Mod profile.");
 	settings[key] = value;
 }
 
@@ -165,7 +182,8 @@ let export_func = () => {
 		...settings,
 
 		set,
-		save
+		save,
+		saveAsync
 	}
 }
 

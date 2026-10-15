@@ -14,7 +14,7 @@ function updateCRC(crc,buffer){
   for(const b of buffer)crc=crcTable[(crc^b)&255]^(crc>>>8);return crc>>>0;
 }
 const hash=data=>crypto.createHash("sha256").update(data).digest("hex");
-async function hashFile(file){const h=crypto.createHash("sha256");for await(const b of fs.createReadStream(file))h.update(b);return h.digest("hex");}
+async function hashFile(file){const h=crypto.createHash("sha256");for await(const b of fs.createReadStream(file,{highWaterMark:CHUNK_BYTES}))h.update(b);return h.digest("hex");}
 async function readIndexFile(file){
   await assertUnlinkedAncestors(file,"皮肤资源路径包含链接或非普通文件，已停止资源读写。");
   const expected=await fsp.lstat(file);
@@ -100,13 +100,23 @@ async function streamArchive(files,output,index,originalEntries,progress=()=>{})
   }finally{await handle.close();}
   return {entries,bytes:position,sha256:archiveHash.digest("hex")};
 }
-async function verifyArchive(entries,archivePath,expectedFiles,progress=()=>{}){
-  const fd=await fsp.open(archivePath,"r");let finished=0;const total=expectedFiles.reduce((n,f)=>n+f.bytes,0);
+async function verifyArchive(entries,archivePath,expectedFiles,progress=()=>{},archiveExpectation){
+  await assertUnlinkedAncestors(archivePath,"皮肤资源路径包含链接或非普通文件，已停止资源读写。");
+  const expected=await fsp.lstat(archivePath);
+  if(!expected.isFile())throw Error("写入后的 VPK 不是普通文件");
+  const fd=await fsp.open(archivePath,"r");let finished=0;const total=expectedFiles.reduce((n,f)=>n+f.bytes,0),archiveHash=archiveExpectation?crypto.createHash("sha256"):null;
   const lookup=createAssetLookup(entries);
-  try{for(const f of expectedFiles){const e=lookup.paths.get(f.path.toLowerCase());if(!e)throw Error("写入后的 VPK 缺少皮肤资源");let crc=0xffffffff;const h=crypto.createHash("sha256");let bytes=0;
-      for(const c of e.chunks){if(c.compressedSize!==c.size||c.size>CHUNK_BYTES)throw Error("写入后的 VPK 资源块不正确");const b=Buffer.alloc(c.size);const read=await fd.read(b,0,b.length,c.offset);if(read.bytesRead!==b.length)throw Error("写入后的 VPK 资源不完整");h.update(b);crc=updateCRC(crc,b);bytes+=b.length;finished+=b.length;progress(finished,total,f.path);}
+  try{const opened=await fd.stat();
+    const same=(a,b)=>a.isFile()&&b.isFile()&&a.dev===b.dev&&a.ino===b.ino&&a.size===b.size&&a.mtimeMs===b.mtimeMs&&a.ctimeMs===b.ctimeMs&&a.nlink===b.nlink;
+    if(!same(opened,expected)||archiveExpectation&&(opened.size!==archiveExpectation.bytes||opened.nlink!==archiveExpectation.links||total!==archiveExpectation.bytes))throw Error("发布后的皮肤归档在校验期间发生变化");
+    const buffer=Buffer.allocUnsafe(CHUNK_BYTES);
+    for(const f of expectedFiles){const e=lookup.paths.get(f.path.toLowerCase());if(!e)throw Error("写入后的 VPK 缺少皮肤资源");if(archiveExpectation&&e.index!==archiveExpectation.index)throw Error("写入后的 VPK 资源归档编号不一致");let crc=0xffffffff;const h=crypto.createHash("sha256");let bytes=0;
+      for(const c of e.chunks){if(c.compressedSize!==c.size||c.size>CHUNK_BYTES||!Number.isSafeInteger(c.offset)||c.offset<0||c.offset+c.size>opened.size||archiveExpectation&&c.offset!==finished)throw Error("写入后的 VPK 资源块不正确");const b=buffer.subarray(0,c.size);let done=0;while(done<b.length){const read=await fd.read(b,done,b.length-done,c.offset+done);if(!read.bytesRead)throw Error("写入后的 VPK 资源不完整");done+=read.bytesRead;}h.update(b);archiveHash?.update(b);crc=updateCRC(crc,b);bytes+=b.length;finished+=b.length;progress(finished,total,f.path);}
       if(bytes!==f.bytes||h.digest("hex")!==f.sha256||((crc^0xffffffff)>>>0)!==e.crc)throw Error("写入后的皮肤数据或校验码不一致");
     }
+    if(archiveExpectation&&(finished!==archiveExpectation.bytes||archiveHash.digest("hex")!==archiveExpectation.sha256))throw Error("发布后的皮肤归档校验失败");
+    await assertUnlinkedAncestors(archivePath,"皮肤资源路径包含链接或非普通文件，已停止资源读写。");
+    if(!same(await fd.stat(),opened)||!same(await fsp.lstat(archivePath),opened))throw Error("发布后的皮肤归档在校验期间发生变化");
   }finally{await fd.close();}
 }
 module.exports={CHUNK_BYTES,MAX_INDEX_BYTES,parseIndex,parseTruncatedIndex,serializeIndex,safeAssetPath,flagsFor,createAssetLookup,streamArchive,verifyArchive,hash,hashFile,updateCRC,readIndexFile};

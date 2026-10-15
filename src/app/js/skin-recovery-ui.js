@@ -29,7 +29,7 @@
     const files=document.createElement('details'),summary=document.createElement('summary'),list=document.createElement('ul');summary.dataset.recoveryLabel='fileDetails';list.dataset.recoveryFiles='';files.append(summary,list);
     const guide=document.createElement('div');guide.className='skin-recovery-guide';const guideTitle=document.createElement('h4');guideTitle.dataset.recoveryLabel='guideTitle';const steps=document.createElement('ol');
     for(const key of ['guide1','guide2','guide3']){const node=document.createElement('li');node.dataset.recoveryLabel=key;steps.append(node);}guide.append(guideTitle,steps);
-    const buttons=document.createElement('div');buttons.append(button(kind+'ResourceCancel','cancel',()=>{plans.delete(kind);confirm.hidden=true;}),button(kind+'ResourceConfirm','downloadInstall',()=>download(kind,true)));confirm.append(warning,budget,files,guide,privacyNotice('confirm'),buttons);
+    const buttons=document.createElement('div');buttons.append(button(kind+'ResourceCancel','cancel',()=>{plans.delete(kind);confirm.hidden=true;window.SkinFeedback?.finish(kind,{ok:false,cancelled:true});}),button(kind+'ResourceConfirm','downloadInstall',()=>download(kind,true)));confirm.append(warning,budget,files,guide,privacyNotice('confirm'),buttons);
     const progress=document.createElement('div');progress.hidden=true;progress.dataset.recoveryProgress='';
     const qr=document.createElement('pre');qr.dataset.recoveryQr='';qr.className='skin-recovery-qr';qr.hidden=true;qr.setAttribute('aria-label',t('qr'));
     const auth=document.createElement('p');auth.dataset.recoveryAuth='';auth.className='dds-original-detail';auth.hidden=true;
@@ -67,13 +67,20 @@
   function updateAll(){for(const[kind,value]of states)update(kind,value);}
   async function perform(kind,work){
     const value=api(kind)?.state||states.get(kind);if(!value?.package||value.busy||busy.size||running())return null;
+    window.SkinFeedback?.beginInstall(kind);
     const selected=identity(value);cancelled.delete(kind);busy.add(kind);updateAll();
     const card=setup(kind),message=card.querySelector('[data-recovery-message]');message.hidden=true;card.hidden=false;
-    try{return await work(selected);}catch(error){message.textContent=I18n.text(error.message);message.hidden=false;card.hidden=false;return {ok:false,error:error.message};}
+    let completed=false;
+    try{const result=await work(selected);completed=Boolean(result?.ok&&!result.cancelled&&!result.confirmationRequired&&stillSelected(kind,selected));if(result?.confirmationRequired)window.SkinFeedback?.waiting(kind);else if(result?.cancelled)window.SkinFeedback?.finish(kind,result);return result;}catch(error){message.textContent=I18n.text(error.message);message.hidden=false;card.hidden=false;const result={ok:false,cancelled:cancelled.has(kind),error:error.message};window.SkinFeedback?.finish(kind,result);return result;}
     finally{
       busy.delete(kind);applying.delete(kind);progressValues.delete(kind);card.querySelector('[data-recovery-progress]').hidden=true;
       const qr=card.querySelector('[data-recovery-qr]');qr.hidden=true;qr.textContent='';card.querySelector('[data-recovery-auth]').hidden=true;
-      await Promise.all([api('dds')?.refresh(),api('vtf')?.refresh()]);updateAll();
+      // finishInstallation has already applied or refreshed the active state.
+      // The other format still needs a scan after cross-format cleanup. Failed,
+      // cancelled and confirmation-only operations retain both recovery scans.
+      const refreshKinds=completed?['dds','vtf'].filter(value=>value!==kind):['dds','vtf'];
+      await Promise.all(refreshKinds.map(value=>api(value)?.refresh()));
+      if(completed)api(kind)?.render?.();updateAll();
     }
   }
   async function directInstall(kind,selected){
@@ -96,7 +103,7 @@
     const card=setup(kind);plans.delete(kind);card.querySelector('.dds-original-confirm').hidden=true;card.querySelector('[data-recovery-progress]').hidden=false;
     renderProgress(kind,{phase:'checking'});
     const result=await ipcRenderer.invoke(kind+'-resource-download',{packageId:selected.id,selectionRevision:selected.revision,installAfterRepair:true});
-    check(kind,selected);if(!result.ok)throw Error(result.cancelled?t('cancelled'):result.error||t('notReady'));
+    check(kind,selected);if(result.cancelled){cancelled.add(kind);throw Error(t('cancelled'));}if(!result.ok)throw Error(result.error||t('notReady'));
     if(result.installed){api(kind).clearError?.();await api(kind).finishInstallation?.(result);return result;}
     throw Error(t('notReady'));
   }
@@ -129,7 +136,7 @@
     const qr=card.querySelector('[data-recovery-qr]');if(auth&&value.qrLines?.length){qr.textContent=value.qrLines.join('\n');qr.hidden=false;}else{qr.hidden=true;qr.textContent='';}
     if(value.canCancel===false){applying.add(kind);document.getElementById(kind+'ResourceStop').disabled=true;}
   }
-  ipcRenderer.on('skin-resource-progress',(_event,value)=>{if(!['dds','vtf'].includes(value?.kind))return;progressValues.set(value.kind,value);renderProgress(value.kind,value);});
+  ipcRenderer.on('skin-resource-progress',(_event,value)=>{if(!['dds','vtf'].includes(value?.kind)||!busy.has(value.kind))return;window.SkinFeedback?.progress(value.kind,value);progressValues.set(value.kind,value);renderProgress(value.kind,value);});
   window.SkinRecovery=Object.freeze({update,source,resume,install,download,cancel,canStart,get busy(){return busy.size>0;}});
   window.addEventListener('vyra-language-changed',updateAll);
 })();

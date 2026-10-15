@@ -40,7 +40,9 @@ test("DDS detects a game starting during range writes and reverses the completed
 });
 test("DDS transaction never trusts a changed file identity or timestamp between ranges",async t=>{
   const f=await fixture(t),transaction=new DdsResourceTransaction(f.game),lstat=fsp.lstat;
-  try{await transaction.read(f.target,64,32);fsp.lstat=async function(file,...args){const stat=await lstat.call(this,file,...args);if(path.resolve(file)===f.target){const replacement=Object.create(stat);replacement.ino=stat.ino+1;return replacement;}return stat;};await assert.rejects(transaction.write(f.target,64,Buffer.alloc(32,2)),/变化/);assert.equal(hash(await fsp.readFile(f.target)),hash(f.before));}finally{fsp.lstat=lstat;await transaction.close();}
+  // Windows file IDs can exceed Number.MAX_SAFE_INTEGER, where adding 1 is
+  // rounded away. Change the simulated identity by a representable step.
+  try{await transaction.read(f.target,64,32);fsp.lstat=async function(file,...args){const stat=await lstat.call(this,file,...args);if(path.resolve(file)===f.target){const replacement=Object.create(stat);replacement.ino=stat.ino+Math.max(1,Math.abs(stat.ino)*Number.EPSILON*2);return replacement;}return stat;};await assert.rejects(transaction.write(f.target,64,Buffer.alloc(32,2)),/变化/);assert.equal(hash(await fsp.readFile(f.target)),hash(f.before));}finally{fsp.lstat=lstat;await transaction.close();}
   const second=new DdsResourceTransaction(f.game);try{await second.read(f.target,64,32);await fsp.utimes(f.target,new Date(2000,0,1),new Date(2000,0,1));await assert.rejects(second.write(f.target,64,Buffer.alloc(32,2)),/变化/);}finally{await second.close();}
 });
 test("DDS transaction refuses linked ancestors initially and at the durability boundary",async t=>{

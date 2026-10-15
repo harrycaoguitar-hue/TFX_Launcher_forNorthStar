@@ -138,6 +138,8 @@ test("uses an in-page DNS preset control and keeps it usable after apply", async
 	let fixture = createDnsSelectDocument();
 	let context = loadScript(path.join(__dirname, "../src/app/js/settings.js"), {
 		console,
+		Event,
+		CustomEvent,
 		document: fixture.document,
 		events: {on() {}},
 		Fuse: class { search() { return []; } },
@@ -149,7 +151,7 @@ test("uses an in-page DNS preset control and keeps it usable after apply", async
 		lang: key => key,
 		settings: {},
 		Toast: function(properties) { toasts.push(properties); },
-		window: {addEventListener() {}}
+		window: {addEventListener() {}, dispatchEvent() {return true;}}
 	});
 
 	assert.equal(context.get_dns_preset(), "aliyun");

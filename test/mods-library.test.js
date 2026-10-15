@@ -20,7 +20,7 @@ function fixture({custom = false, missingMods = false, importAction} = {}) {
   const modules = {
     "fs-extra": fakefs, electron: {app, ipcMain: {on: (name, callback) => ipc.set(name, callback), handle: (name, callback) => ipc.set(name, callback)}, dialog: {}},
     "./settings": () => saved, "./northstar-region": require("../src/modules/northstar-region"), "./launch-session": require("../src/modules/launch-session"),
-    "./mod-enabled-state": state, "./mod-added-times": require("../src/modules/mod-added-times"), "./console": {error() {}, ok() {}}, "../win": () => window,
+    "./mod-enabled-state": state, "./server-mod-profiles": require("../src/modules/server-mod-profiles"), "./mod-added-times": require("../src/modules/mod-added-times"), "./console": {error() {}, ok() {}}, "../win": () => window,
     "../lang": Object.assign(key => key, {getLocale: () => "en-US"}),
     "./local-mod-import": {messages: {game: "Select the game"}, async importLocalMod(filename, options) {imports.push({filename, options}); return importAction ? importAction(filename, options) : {ok: true, name: "Imported", names: ["Imported"]};}},
     "./is_running": {snapshot: async () => typeof processSnapshot === "function" ? processSnapshot() : processSnapshot},
@@ -173,6 +173,19 @@ test("a rejected second import cannot release the first import lock or start a t
   const f = fixture({importAction: () => pending}), first = f.mods.install(path.join(f.base, "One.zip")); await new Promise(resolve => setImmediate(resolve));
   const second = await f.mods.install(path.join(f.base, "Two.zip")), third = await f.mods.install(path.join(f.base, "Three.zip")); assert.equal(second.code, "busy"); assert.equal(third.code, "busy"); assert.equal(f.imports.length, 1); finish({ok: true, name: "One"}); assert.equal((await first).ok, true);
 });
+test("shared skin intake blocks legacy Mod installs without releasing UI lock and permits its own guarded install", async () => {
+  const f=fixture(),source=path.join(f.base,"Example.zip");f.mods.sharedImportBusy=true;
+  const rejected=await f.mods.install(source);assert.equal(rejected.code,"busy");assert.equal(f.imports.length,0);assert.deepEqual(f.events.filter(item=>item[0]==="set-buttons").map(item=>item[1]),[false]);
+  const progress=()=>{};const installed=await f.mods.install(source,{sharedImport:true,onProgress:progress});assert.equal(installed.ok,true);assert.equal(installed.importOrigin,"unified");assert.equal(f.events.find(item=>item[0]==="installed-mod")[1].importOrigin,"unified");assert.equal(f.imports.length,1);assert.equal(f.imports[0].options.onProgress,progress);assert.equal(f.mods.isImportBusy(),false);assert.equal(f.mods.sharedImportBusy,true);
+});
+test("every direct Mod write API refuses a shared import or active game operation without changing files", async () => {
+  for(const lock of ["shared","game"]){
+    const f=fixture();f.put("Personal.One");const statePath=path.join(f.profile,"enabledmods.json");fs.writeFileSync(statePath,JSON.stringify({"Personal.One":true}));const original=hashTree(f.gamePath);
+    if(lock==="shared")f.mods.sharedImportBusy=true;else f.setGateBusy(true);
+    const results=[f.mods.setState({names:["Personal.One"],enabled:false}),f.mods.modfile.gen(),f.mods.modfile.toggle("Personal.One"),f.mods.toggle("Personal.One"),f.mods.remove("Personal.One"),await f.mods.setStateAsync({names:["Personal.One"],enabled:false}),await f.mods.removeAsync("Personal.One")];
+    for(const result of results){assert.equal(result.ok,false);assert.equal(result.code,"busy");}assert.equal(hashTree(f.gamePath),original);
+  }
+});
 test("one batch indexes once and writes once for both state schemas", () => {
   for (const versioned of [false, true]) {
     const f = fixture(); f.put("A.Child", "1", "Child", "Alice-Example-1.0.0"); f.put("B.Child", "2", "Child", "Bob-Other-2.0.0");
@@ -236,6 +249,40 @@ test("invalid UTF-8 definitions reject import rather than replacing bytes and di
   const importer = require("../src/modules/local-mod-import"), f = fixture({importAction: importer.importLocalMod}), directory = path.join(f.base, "InvalidEncoding"); fs.mkdirSync(directory);
   const bytes = Buffer.concat([Buffer.from('{"Name":"Personal.'), Buffer.from([0xff]), Buffer.from('","Version":"1"}')]); fs.writeFileSync(path.join(directory, "mod.json"), bytes); const original = hashTree(f.gamePath);
   const result = await f.mods.install(directory); assert.equal(result.ok, false); assert.equal(result.code, "definition"); assert.match(result.error, /UTF-8/); assert.equal(hashTree(f.gamePath), original); assert.deepEqual(fs.readFileSync(path.join(directory, "mod.json")), bytes);
+});
+
+test("local import initializes independent choices before committing a first package", async () => {
+  let f;
+  f = fixture({importAction: async () => {const metadata = require("../src/modules/server-mod-profiles").read(f.profile).value; assert.equal(metadata.global.Existing, true); f.put("Fresh.Import"); return {ok: true, name: "Fresh.Import", names: ["Fresh.Import"]};}});
+  f.saved.independentServerMods = true; f.saved.northstarRegion = "cn"; f.put("Existing");
+  const result = await f.mods.install(path.join(f.base, "fixture.zip")); assert.equal(result.ok, true);
+  const profiles = require("../src/modules/server-mod-profiles"); profiles.transition(f.saved, {...f.saved, northstarRegion: "global"});
+  const document = state.parse(state.checked(path.join(f.profile, "enabledmods.json"))); assert.equal(state.enabled(document, "Fresh.Import", "1"), false);
+});
+test("a region change during an asynchronous process guard cancels a queued Mod toggle", async () => {
+  const f = fixture(); f.put("Example"); f.saved.northstarRegion = "cn";
+  let release; f.setSnapshot(() => new Promise(resolve => {release = resolve;})); const before = hashTree(f.gamePath);
+  const pending = f.mods.setStateAsync({names: ["Example"], enabled: false});
+  f.saved.northstarRegion = "global"; release({ok: true, processes: []});
+  assert.equal((await pending).ok, false); assert.equal(hashTree(f.gamePath), before);
+});
+test("post-crash reads project selected server without writes and the next mutation recovers its live flags", async () => {
+  const f = fixture(), profiles = require("../src/modules/server-mod-profiles"); f.put("Example"); f.saved.independentServerMods = true; f.saved.northstarRegion = "cn";
+  profiles.transition(f.saved, f.saved); assert.equal(f.mods.setState({names: ["Example"], enabled: false}).ok, true);
+  profiles.transition(f.saved, {...f.saved, northstarRegion: "global"}); // Persisted selection still CN after interrupted acknowledgement.
+  const before = hashTree(f.gamePath); assert.equal(f.mods.list({readOnly: true}).all.find(row => row.name === "Example").disabled, true); assert.equal(hashTree(f.gamePath), before);
+  assert.equal((await f.mods.setStateAsync({names: ["Example"], enabled: true})).ok, true);
+  assert.equal(profiles.read(f.profile).value.activeRegion, "cn");
+  const live = state.parse(state.checked(path.join(f.profile, "enabledmods.json"))); assert.equal(live.format, "flat"); assert.equal(state.enabled(live, "Example", "1"), true);
+});
+test("independent toggle snapshots the confirmed choice and a snapshot failure rolls the live choice back", () => {
+  const f = fixture(), profiles = require("../src/modules/server-mod-profiles"); f.put("Example"); f.saved.independentServerMods = true; f.saved.northstarRegion = "global";
+  profiles.transition(f.saved, f.saved);
+  assert.equal(f.mods.setState({names: ["Example"], enabled: false}).ok, true); assert.equal(profiles.read(f.profile).value.global.Example, false);
+  const before = hashTree(f.gamePath), originalWrite = state.write;
+  state.write = (filename, ...args) => {if (filename.endsWith(".tfx-server-mods.json")) throw Error("snapshot disk full"); return originalWrite(filename, ...args);};
+  try {const result = f.mods.setState({names: ["Example"], enabled: true}); assert.equal(result.ok, false); assert.match(result.error, /snapshot disk full/); assert.equal(hashTree(f.gamePath), before);}
+  finally {state.write = originalWrite;}
 });
 
 test.after(() => {

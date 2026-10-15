@@ -1,5 +1,5 @@
 /* Matte translucent surfaces. Motion stays finite and follows user preferences. */
-.fold-shell .glass,.fold-shell .fold-sidebar,.fold-shell .fold-home .fold-hero,.fold-shell .fold-home .fold-launch-dock,.fold-shell .fold-home .fold-resource-card,.fold-shell .fold-dds-input,.fold-shell .fold-dds-plan,.fold-shell .fold-dds-history,.fold-shell .popup{border:0;outline:0}
+.fold-shell .glass,.fold-shell .fold-sidebar,.fold-shell .fold-home .fold-hero,.fold-shell .fold-home .fold-launch-dock,.fold-shell .fold-home .fold-resource-card,.fold-shell .fold-dds-input,.fold-shell .fold-dds-plan,.fold-shell .popup{border:0;outline:0}
 .fold-shell .fold-sidebar{background:rgba(var(--theme-surface-rgb),.35);box-shadow:inset 0 0 0 1px rgba(var(--theme-ink-rgb),.035),0 10px 30px rgba(0,0,0,.045);backdrop-filter:blur(28px) saturate(120%);height:72px}
 .fold-shell .fold-nav{margin:0 auto 0 8px;gap:7px}
 .fold-shell .fold-nav button{padding:0 15px}
@@ -66,7 +66,7 @@ html[data-theme-tone="light"] .fold-shell .fold-sidebar{background:rgba(var(--th
 .fold-shell #modsdiv .el .update{grid-column:1/-1;grid-row:5;justify-self:start;min-height:27px;padding:5px 8px;margin:8px 0 0}
 .fold-shell #modsdiv .message{grid-column:1/-1;border:0;background:rgba(var(--theme-ink-rgb),.025);border-radius:19px;padding:40px}
 .fold-shell #modsdiv .el:last-child{border:0}
-.fold-shell .fold-dds-input,.fold-shell .fold-dds-plan,.fold-shell .fold-dds-history{box-shadow:inset 0 1px 1px rgba(var(--theme-ink-rgb),.08),0 7px 27px rgba(0,0,0,.025)}
+.fold-shell .fold-dds-input,.fold-shell .fold-dds-plan{box-shadow:inset 0 1px 1px rgba(var(--theme-ink-rgb),.08),0 7px 27px rgba(0,0,0,.025)}
 .northstar-servers{grid-column:1/-1;min-width:0;padding:5px 0 0;margin:0;background:none;border:0}
 .server-list-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 8px}
 .server-list-heading>div:first-child{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}

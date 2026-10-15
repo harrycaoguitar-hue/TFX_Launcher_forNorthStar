@@ -24,7 +24,12 @@
   window.addEventListener('blur',()=>{consumeEscapeRelease=false;});
   document.addEventListener('pointerdown',event=>{if(opened&&!menu.contains(event.target)&&!trigger.contains(event.target))close()},true);
   document.addEventListener('focusin',event=>{if(opened&&!menu.contains(event.target)&&!trigger.contains(event.target))close()});
-  document.addEventListener('scroll',event=>{if(opened&&!menu.contains(event.target))close()},true);
+  document.addEventListener('scroll',event=>{
+    if(!opened||menu.contains(event.target))return;
+    const anchor=trigger.getBoundingClientRect(),bounds=popup.querySelector('.options').getBoundingClientRect();
+    if(popup.classList.contains('shown')&&anchor.top>=bounds.top&&anchor.bottom<=bounds.bottom)position();
+    else close();
+  },true);
   window.addEventListener('resize',()=>close());window.addEventListener('vyra-language-changed',()=>{sync();if(opened)position()});
   select.addEventListener('change',sync);
   if(typeof events==='object')events.on('popup-changed',({popup:changed,new_state:shown})=>{if(changed===popup&&!shown)close()});

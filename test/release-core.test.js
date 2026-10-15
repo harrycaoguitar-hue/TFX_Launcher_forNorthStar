@@ -17,14 +17,14 @@ function settingsFixture(initial={}){
   const context={module:{exports:{}},require:id=>id==="electron"?{app:{getPath:()=>dir},ipcMain:{handle:(n,fn)=>handles.set(n,fn),on:(n,fn)=>listeners.set(n,fn)}}:id==="fs"?wrapped:id==="./json"?()=>initial:id==="../lang"?lang:id==="../win"?()=>({send:(...args)=>messages.push(args)}):local(id)};
   vm.runInNewContext(fs.readFileSync(real,"utf8"),context,{filename:real});return {dir,file,handles,listeners,messages,settings:context.module.exports,setFail:value=>fail=value,close:()=>fs.rmSync(dir,{recursive:true,force:true})};
 }
-test("settings-save reports disk failure and preserves memory, disk and retry capability",()=>{
+test("settings-save reports disk failure and preserves memory, disk and retry capability",async()=>{
   const fixture=settingsFixture({theme:"aurora",uiLanguage:"en-US",excludes:[]});try{
-    const before=fs.readFileSync(fixture.file),save=fixture.handles.get("settings-save");fixture.setFail(true);assert.equal(save({}, {theme:"mist"}).ok,false);assert.equal(fixture.settings().theme,"aurora");assert.deepEqual(fs.readFileSync(fixture.file),before);assert.deepEqual(fs.readdirSync(fixture.dir),["fold.json"]);
-    fixture.setFail(false);const result=save({}, {theme:"mist",uiLanguage:"fr-FR"});assert.equal(result.ok,true);assert.equal(fixture.settings().theme,"mist");assert.equal(JSON.parse(fs.readFileSync(fixture.file)).uiLanguage,"fr-FR");assert.deepEqual(fs.readdirSync(fixture.dir),["fold.json"]);
+    const before=fs.readFileSync(fixture.file),save=fixture.handles.get("settings-save");fixture.setFail(true);assert.equal((await save({}, {theme:"mist"})).ok,false);assert.equal(fixture.settings().theme,"aurora");assert.deepEqual(fs.readFileSync(fixture.file),before);assert.deepEqual(fs.readdirSync(fixture.dir),["fold.json"]);
+    fixture.setFail(false);const result=await save({}, {theme:"mist",uiLanguage:"fr-FR"});assert.equal(result.ok,true);assert.equal(fixture.settings().theme,"mist");assert.equal(JSON.parse(fs.readFileSync(fixture.file)).uiLanguage,"fr-FR");assert.deepEqual(fs.readdirSync(fixture.dir),["fold.json"]);
   }finally{fixture.close();}
 });
-test("legacy immediate preference save reports errors and restores renderer state",()=>{
-  const fixture=settingsFixture({theme:"aurora",uiLanguage:"en-US"});try{fixture.setFail(true);fixture.listeners.get("save-settings")({}, {theme:"mist"});assert.equal(fixture.settings().theme,"aurora");assert.equal(fixture.messages[0][0],"changed-settings");assert.equal(fixture.messages[0][1].theme,"aurora");assert.equal(fixture.messages[1][0],"unknown-error");}finally{fixture.close();}
+test("legacy immediate preference save reports errors and restores renderer state",async()=>{
+  const fixture=settingsFixture({theme:"aurora",uiLanguage:"en-US"});try{fixture.setFail(true);await fixture.listeners.get("save-settings")({}, {theme:"mist"});assert.equal(fixture.settings().theme,"aurora");assert.equal(fixture.messages[0][0],"changed-settings");assert.equal(fixture.messages[0][1].theme,"aurora");assert.equal(fixture.messages[1][0],"unknown-error");}finally{fixture.close();}
 });
 test("a second instance quits before settings, game and installer modules initialize",()=>{
   const file=path.join(__dirname,"../src/index.js"),calls=[],app={name:"tfx-launcher",setPath:()=>{},getPath:()=>"D:/tfx-test",requestSingleInstanceLock:()=>false,quit:()=>calls.push("quit")};

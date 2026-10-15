@@ -210,6 +210,7 @@ class DdsEngine {
       if(!game.ready&&game.canRepair){await this.resources.repair(game.path,pkg.files);game=await this.gameStatus(gamePath,pkg);}
       if(!game.ready)throw Error(game.error);
       const journals=await readJournals(this.baseDir,game.path);
+      if(options.prepareJournals)options.prepareJournals(journals);
       this.progress("backup",0,"正在检查旧皮肤与覆盖安装范围");
       const originalPlan=await this.originals.prepare(pkg,game.path);
       if(!originalPlan.status.complete)throw Error(originalPlan.status.reason);

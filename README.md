@@ -1,324 +1,189 @@
 # TFX Launcher
 
-**English** | [简体中文](README.zh-CN.md)
+**English** · [简体中文](README.zh-CN.md)
 
-**Switch between Northstar's Global servers and NorthstarCN's China servers. Install DDS & VTF skins in one click.**
+**Two Northstar networks. One launcher. DDS, VTF and Mods—drop them in and play.**
 
-Play on both Northstar networks from the same TITANFALL 2 installation. Select Global or China and launch; TFX switches to the matching client files for you. Import a compatible DDS or VTF skin package, review the installation plan, and click **Install**. Skin replacement and recovery backups are built in.
+TFX brings **Northstar Global** and **NorthstarCN China** to one TITANFALL 2 installation. Choose a network, launch the matching client, and keep your community play in one place. A unified installer recognizes DDS skins, VTF skins and Northstar Mods automatically; the Arsenal organizes skins by weapon and lets you return directly to a valid historical skin or the original.
 
-**[Download for Windows x64](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest)** · [Report an issue](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
+[Download TFX 1.0.3](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest) · [Report a problem](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
 
-<p align="center">
-  <img src="docs/images/play.webp" alt="TFX in English: Northstar Global and China client switching in a frosted interface" width="1120">
-</p>
+![TFX Northstar launch screen](docs/images/play.webp)
 
-### Why try TFX?
-
-| What you want to do | How TFX helps |
+| Your next session | What TFX does |
 |---|---|
-| Play on Global or China | Switch between **Northstar** and **NorthstarCN** from the launcher. Install either client here if it is missing. |
-| Install a new skin | Import **DDS or VTF** skins and install with one click after validation. Compatible VTF archives can be ZIP, 7z, RAR, and more. |
-| Replace a skin on the same weapon | Replace supported skins across **DDS and VTF** formats, clean up previous skin resources, and keep recovery backups. |
-| Find servers and mods | Browse each network's public servers, search your installed mods, and download Thunderstore mods with their dependencies. |
-| Make it your own | Choose **10 themes** and **5 languages** in a frosted interface, with an option to exit TFX after a successful launch. |
-
-Windows x64 · Requires an installed copy of TITANFALL 2 · First-time client installation is separate from launch
+| Global or China | Prepare both clients once, then select **Northstar** or **NorthstarCN** without managing client files by hand. |
+| A new look | Drop a compatible **DDS, VTF or Mod** package into one installer. TFX identifies, checks and installs it automatically. |
+| A previous skin | Open the **Arsenal**, select a weapon and restore a valid historical skin directly—even across linked DDS / VTF installations. |
+| Different Mod setups | Optionally remember **enabled Mods separately for CN and Global**. The default remains a shared setup. |
+| A server to join | Browse either network's public server directory, with search, maps, modes and player counts. |
+| Your own workspace | Use searchable Mod cards, Thunderstore downloads, ten themes and five interface languages. |
 
 ### A closer look
 
-Actual TFX 1.0.2 interface, shown in English. Numbered mods, skins, servers, and installation states are demonstration data; these images do not represent live server availability.
+These are actual **English TFX 1.0.3** screens. Numbered packages, servers, paths, counts and installation states are isolated demonstration data; the screenshots do not show live availability or users' content.
 
-| Your mods, organized | Community servers at a glance |
+| Searchable Mod management | Community server browser |
 |:---:|:---:|
-| ![Search, sort, and toggle installed mods](docs/images/mods.webp) | ![Browse the Global and China public server directories](docs/images/servers.webp) |
-| **DDS installation** · review the package before installing | **VTF installation** · use the same focused workflow |
-| ![DDS skin import and installation plan](docs/images/dds.webp) | ![VTF skin import and installation plan](docs/images/vtf.webp) |
+| ![Search, sort and toggle Mods](docs/images/mods.webp) | ![Vertical server list with search and player counts](docs/images/servers.webp) |
+| **DDS** · automatic checks and installation | **VTF** · the same unified drop zone |
+| ![DDS package received and installation progress](docs/images/dds.webp) | ![VTF package received and installation progress](docs/images/vtf.webp) |
+| **Arsenal** · skins and restoration by weapon | **Preferences** · themes, language and launch controls |
+| ![Weapon catalogue and selectable historical skins](docs/images/arsenal.webp) | ![TFX preferences in English](docs/images/preferences.webp) |
 
-<details>
-<summary><strong>Make it yours — 10 themes and 5 languages</strong></summary>
+## Get started
 
-![TFX appearance and language preferences](docs/images/preferences.webp)
+TFX is a **Windows x64 portable launcher**. You need a purchased, installed copy of TITANFALL 2, a working Steam / EA environment, and free space for client files, package staging and recovery data. The game is not included.
 
-Choose a theme and language in the app, then save your preferences.
+1. Run `TFX-Launcher-1.0.3.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
+2. Let TFX detect the game, or select the game root containing `Titanfall2.exe`. Choose the actual game folder, rather than `steamapps`, `common` or a Mod subfolder.
+3. Open **Northstar**, select **CN** or **Global**, and install that client if TFX reports it is missing.
+4. Launch. Complete any platform sign-in or ownership confirmation in Steam / EA if requested.
+5. To add content, open **Skin installer** and drop one package or folder on the left. TFX displays its name immediately, detects its contents, and starts the appropriate installation after validation.
 
-</details>
+Use the latest release's acceptance document for the exact tested scope. External services, packages and game installations can differ from the demonstration and test fixtures.
 
-<a id="en"></a>
+## Launching Northstar and NorthstarCN
 
-## English
+TFX tracks the two client installations separately. A cached archive is not treated as an installed client. The first-install data included in 1.0.3 contains **NorthstarCN 1.17.7** and **Northstar 1.31.13**; internet access is still required for online play.
 
-### Contents
+After both clients are prepared, switching uses the corresponding prepared core files rather than extracting the whole release again. Personal Mods and skin resources are retained. Recognized newer local clients are preserved; TFX does not silently replace them with an older bundled version. The selected client's actual version and installation status appear on the launch screen.
 
-- [Installation and first use](#en-start)
-- [Launching and client management](#en-launch)
-- [Community servers](#en-servers)
-- [My Mods and Thunderstore downloads](#en-mods)
-- [DDS and VTF skin installation](#en-skins)
-- [Backups, restoration, and skin launch protection](#en-recovery)
-- [Appearance, languages, and preferences](#en-settings)
-- [Updates, storage, and troubleshooting](#en-help)
-- [Building, support, and credits](#en-project)
+- **Install or repair:** The selected network has its own installation state and action. Install it first, then launch.
+- **Client updates:** Check the selected Northstar client's releases, refresh its version or reinstall from Preferences. Client updates and TFX updates are separate.
+- **Launch feedback:** TFX checks the game process and Northstar menu loading. Failure, platform handoff and an early game exit release the launch state with feedback.
+- **File-operation protection:** Client replacement and skin writes are blocked while the game is running. A changed destination or profile stops an operation before it commits to the wrong location.
+- **Lower background use:** **Exit TFX after the game starts** is off by default. When enabled, TFX exits after a confirmed successful launch and stays open if launching fails.
 
-<a id="en-start"></a>
+**Vanilla** remains available for the campaign and official multiplayer, through the normal Steam / EA launch environment.
 
-### Installation and first use
+## Community servers
 
-#### Requirements
+**Community Servers** has a vertical public directory for the selected network. Search by server name, map or mode, and inspect players / capacity, descriptions and required Mods. More populated servers appear first. The page uses the same scrolling area as the rest of the app.
 
-- A 64-bit Windows system. This release provides a Windows x64 build.
-- A purchased, installed copy of TITANFALL 2 and a working Steam / EA launch environment. TFX does not include the game.
-- Enough free space on the game and data drives for client installation, download caches, and skin recovery backups.
-- Internet access for server browsing, Thunderstore, and update checks. Version 1.0.2 includes first-install data for both Northstar clients; installing a client does not make online play available offline.
+The visible directory can be refreshed manually and refreshes periodically while relevant pages are visible. Polling pauses when it is unnecessary. Unavailable results and cached data are distinguished. The Northstar home screen retains the selected public directory's player total; it is not a count of every player on the entire network. Times and refresh timestamps follow your computer's system clock.
 
-#### Getting started
+Browse here, then join through the matching client's in-game server browser. The launcher does not directly join a server from this list.
 
-1. Download and run `TFX-Launcher-1.0.2.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
-2. TFX checks your saved location, Steam libraries, and EA installation information. If detection fails, use **Choose folder / Change folder** to select the game root containing `Titanfall2.exe`. Do not select `steamapps`, `common`, or a mod subfolder.
-3. On first use, Chinese system languages select Simplified or Traditional Chinese as appropriate; other system languages default to English. Change this in **Preferences → Appearance & language** and save to keep your choice.
-4. In **Play**, choose vanilla or Northstar. For Northstar, also choose **CN / Global**. If the selected client is not installed, install it before launching.
+## Mods: search, sort, download and separate region states
 
-The portable EXE does not require a separate TFX installation, but it still saves preferences, caches, and recovery records. If using a directory build, run `TFX-Launcher.exe` and keep all files beside it. Opening TFX again focuses the existing window so multiple instances do not write to the same configuration at once.
+**My Mods** displays cards with names, authors, descriptions and enabled states. Search matches these fields. The app-styled sorting menu offers **Added date**, **Name** and **Enabled state**. Toggles provide saving feedback, restore the actual state after a failure, and preserve the list's search and scroll position. Bulk controls are available; required core components are protected.
 
-<a id="en-launch"></a>
+Open **My Mods → Discover Mods** for [Thunderstore's Northstar directory](https://thunderstore.io/c/northstar/). Search and filter packages, inspect dependencies, download with progress, or cancel. TFX stages and checks the planned content before committing it, and preserves or restores existing content after a failed installation. Native plugin packages require explicit confirmation. Each package keeps its author and licensing information.
 
-### Launching and client management
+For a local package, use **Skin installer**. A compatible archive or complete folder containing valid `mod.json` definitions is identified as a **Mod** and installed automatically. After installation, manage its switches and removal in **My Mods**. Invalid definitions, unsafe paths, damaged archives and mixed incompatible content produce explicit errors.
 
-#### Vanilla game
+### Separate Mod states for CN and Global
 
-**Vanilla** launches the EA version of TITANFALL 2 for the campaign and official multiplayer. Steam / EA may require a sign-in or launch confirmation during the initial handoff; complete these prompts in the relevant platform. Vanilla and Northstar community play have separate launch modes.
+Enable **Preferences → Separate Mod states by region** when the two networks need different enabled Mods. It is **off by default**.
 
-The home page shows the game folder and lets you open or change it. The end-game control can stop an unresponsive game process; forcing it to close may lose unsaved progress.
+- On first enable, both sides start with the current enabled-state setup. Later changes are remembered for the selected side only.
+- Selecting another network applies that network's remembered enabled states. Switching waits for the state change to succeed; a failure keeps the previous selection.
+- A Mod newly added on one side starts enabled there and disabled on the other side.
+- Turning this option off keeps the current side's enabled states as the shared setup. Restoring default preferences turns it off.
 
-#### NorthstarCN and Northstar
+This option separates **Mod enabled states only**. Installed package files, native plugin binaries, DDS skins and VTF skins remain shared. It does not provide a separate game installation or isolate plugin code.
 
-**Northstar** offers two client channels:
+## One installer for DDS, VTF and Mods
 
-| Selection | Client | First-install version bundled with 1.0.2 |
+Drag one file or folder into the left-hand drop zone, or use its file / folder chooser. The received name appears on the left immediately. TFX identifies the **contents**, selects DDS, VTF or Mod processing, validates them and installs automatically. The right side shows checks and progress. Estimated progress is marked `≈`; completion reaches 100% only after the operation reports success. A completion notification appears in the lower-right corner.
+
+| Content | Compatible input | Keep intact |
 |---|---|---|
-| CN | NorthstarCN | 1.17.7 |
-| Global | Northstar | 1.31.13 |
+| DDS skin | A DDS file, complete skin folder, or readable supported archive such as ZIP, 7z or RAR | DDS resource filenames |
+| VTF skin | A complete skin folder or readable supported archive such as ZIP, 7z or RAR | Associated materials / models folder structure |
+| Northstar Mod | A complete Mod folder or readable supported archive with valid `mod.json` definitions | Mod definition and its resource structure |
 
-TFX checks each client's actual files and installation state separately, showing states such as not installed, ready to switch, active, or repair required. A bundled archive or downloaded cache is not treated as an installed client.
+A standalone VTF file lacks the package structure needed for installation. A readable archive still needs compatible content; a filename extension alone is not accepted as proof. Import one package at a time. A rejected import clears the pending selection, so it cannot accidentally install the last valid package.
 
-- **First installation:** Use the selected channel's install button, wait for extraction and verification, and then launch. Installation and launch are separate actions.
-- **Channel switching:** Once both clients are prepared, select the other channel and launch. TFX switches the corresponding core files while retaining personal mods, skins, and settings. Repeated launches of the same channel reuse prepared files to reduce extraction and copying.
-- **Version detection:** The home page shows the selected client's actual version. A recognized newer local client is preserved rather than directly downgraded to the older bundled version.
-- **Client updates:** The home page's update check targets the Northstar client. Preferences provide automatic updates, version refresh, reinstallation, and files to retain during updates. An uninstalled channel still requires an explicit first installation.
-- **Protection while running:** Client switching and file replacement are blocked while the game runs. Changing the target folder or channel during installation stops the commit and handles recovery to avoid writing to the wrong destination.
-- **Launch feedback:** TFX checks the game process and Northstar core-menu loading, and reports failure reasons. Closing the game quickly during startup releases the waiting state so you can retry.
+**DDS checks** include headers, compression formats, dimensions, resource matching and resolution coverage. **VTF checks** include materials, model assets and archive structure. DDS → VTF and VTF → DDS replacement coordinate the same weapon's previous resources, reducing retained lettering, sights or incompatible model entries. Support depends on recognized game resources and valid package contents.
 
-To reduce background use during play, enable **Exit TFX after the game starts**. TFX exits after confirming the launch succeeded and stays open if it fails. This option is off by default.
+### Missing originals and selective repair
 
-<a id="en-servers"></a>
+TFX first looks for verified original resources in its own cache or usable backups. When the required originals are missing, its repair flow can obtain **only the required original resources** into an isolated cache and then resume the skin operation. It does not ask Steam to validate the whole game and erase unrelated installed skins.
 
-### Community servers
+A selective Steam download may require signing in with an account that owns TITANFALL 2. TFX displays the instructions and QR flow when needed. You do not type a Steam password into TFX. Authentication is handled by the download helper connecting to Steam; TFX does not upload sign-in data to the author's server or cloud. The helper uses an isolated temporary sign-in profile, and secrets are not included in normal progress logs. Review Steam's confirmation before approving a sign-in.
 
-The **Community Servers** page in the sidebar presents the CN or Global public directory as a vertical list. Search by server name, map, or mode, and inspect player counts / capacity, descriptions, and required mods. Servers with more players appear first, using the page's shared scrolling area.
+The repair plan is tied to verified resource metadata for the installed game. If the local manifest, ownership, connection or available space cannot be verified, TFX explains the blocking step instead of writing guessed game data. You can also supply a trusted original-resource backup through the repair flow.
 
-Data comes from each network's public server directory. You can refresh manually; relevant visible pages refresh about once a minute. Unnecessary polling pauses when the page is left, covered by a popup, or the window is hidden. Failed requests distinguish unavailable data from the last cached list rather than presenting old data as a new result.
+## Arsenal: choose a weapon, choose a skin
 
-The lower-left corner of the Northstar home page shows the selected network's public-server player count. This is a sum from the public directory, not a count of every player online. Displayed times and refresh timestamps use your computer's system time; player counts change with directory refreshes.
+The **Arsenal** is part of the Skin installer page. Its catalogue has **40 weapons**, including Titan weapons and Titan melee weapons. Simplified and Traditional Chinese names and categories follow the game's official localization. Each weapon card has a matching silhouette; search finds weapon and skin names.
 
-This list is for browsing. Launch the matching client and join through its in-game server browser. TFX does not join games directly from its server list.
+DDS, VTF and recognized Mod skins appear together under the relevant weapon. Resource paths provide the strongest ownership evidence; a package name alone does not prove a weapon match. Mod skins retain their **Manage Mod** action, because enabling and removing them belongs in My Mods.
 
-<a id="en-mods"></a>
+For DDS / VTF history, select a weapon and use **Use this skin** on any valid linked historical entry. Selecting skin **A restores A's installed state**, rather than the state before A was installed. TFX handles the required intermediate steps automatically; you do not restore each newer record manually. You can select another valid historical target afterwards. **Restore original skin** returns that weapon to the linked original state.
 
-### My Mods and Thunderstore downloads
+The current target is labeled **Current**. Usable history is labeled **Available to restore**. Targets detected as unavailable are disabled with an explanation. The list checks record metadata and required archive availability; full payload integrity is verified before restoration writes begin. The list initially fits its visible rows to the weapon grid; **Show more records** expands the rest. Restoration has a confirmation, progress and a success notification. Only the selected weapon's DDS / VTF resources are changed; other weapons are preserved. An enabled Mod can still override that weapon in-game, so disable it in My Mods if needed.
 
-#### Installed mods
+If an interrupted installation needs recovery, use its separate recovery prompt **inside the Arsenal** before installing another skin. Such a recovery may include several linked weapons from the interrupted operation. Keep the game closed during installation or restoration, and retain recovery data while it is in use. TFX can clean abandoned cancelled or rolled-back caches only when they have no live recovery references; usable historical targets are retained.
 
-**My Mods** uses cards to show each mod's name, author, description, and state, with controls to enable, disable, or remove it. Search matches names, authors, and descriptions.
+## Preferences, appearance and language
 
-The sorting menu uses TFX's own interface and offers:
+TFX uses frosted translucent panels, rounded cards, short page transitions and motion-aware feedback. The window can be moved using its blank title-bar area. The app uses rounded window corners where supported by Windows.
 
-| Sort | Behavior |
+Preview **Aurora, Abyss, Nebula, Sakura, Ember, Grove, Sandstone, Graphite, Glacier or Mist**. Glacier and Mist are light themes. Five languages are available: **English, 简体中文, 繁體中文, Deutsch and Français**. First use follows the system language: Chinese systems use Chinese and other systems start in English. A saved manual selection takes priority. Language and sort menus use TFX's own interface.
+
+Normal preference edits, including language and theme previews, are saved together. If you leave with unsaved changes, choose **Save and leave**, **Discard and leave** or **Keep editing**. Failed saves retain your input. Separately acknowledged immediate switches, including skin protection and regional Mod states, are saved when changed.
+
+| Group | Main controls |
 |---|---|
-| Added date | Recently added mods first |
-| Name | Name order using the selected language's sorting rules |
-| Enabled state | Enabled mods first, then name order within each state |
+| Appearance & language | Five languages, ten themes, live preview |
+| Game launch | Game folder, launch arguments, exit after launch, regional Mod states |
+| Skin launch protection | Enable protection, inspect or recapture recorded settings |
+| Client updates | Automatic checks, version refresh, retained files, reinstall selected client |
+| Connection | DNS cache and explicit DNS provider changes |
+| Maintenance | Installation cache cleanup, process controls, launcher restart |
+| About | HarryCao, support links, special thanks, TFX version and update check |
 
-Toggles show saving status and the result; a failed save restores the actual state. List updates preserve the search and scroll position to reduce jumps to the top. Bulk toggle and removal controls are also available, with required core components protected.
+**Skin launch protection** applies to both DDS and VTF. It restores your recorded `setting.stream_memory` and `setting.mat_picmip` choices before launching from TFX. Capture settings after confirming your skins display correctly; this is not a universal graphics preset. It does not lock game options or install an extra UI Mod.
 
-#### Browse and download
+**Restore defaults** requires a deliberate hold to prevent accidental activation. It resets preferences, including regional Mod separation, without deleting the game, installed skins or required recovery resources.
 
-Open **My Mods → Discover Mods** to browse [Thunderstore's Northstar community directory](https://thunderstore.io/c/northstar/). Search names and authors, and filter by category.
+## Updates, storage and troubleshooting
 
-TFX plans dependencies, downloads and checks the installation content, and commits only after everything is ready. Downloads can be cancelled. Failures preserve or restore existing content rather than leaving only some dependencies installed. Native plugin installations require confirmation inside the app. Mod author information and package licenses are retained.
+TFX checks its own releases at [this GitHub repository](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases). Northstar client checks use the selected client's release source. Updating one does not mean the other has updated.
 
-Thunderstore provides the catalog and packages. The catalog browser, dependency planning, download, installation, and management implementations were rewritten for this project; individual mods are provided by their authors.
+Preferences use the Windows application-data directory. Client and package caches may prefer `D:/TFX-Launcher-Data` when that drive is available; prepared client files also use the game's `.tfx` area. DDS / VTF caches and recovery data remain in managed application-data locations. Use the app's installation-cache cleanup for disposable downloads. Do not manually remove skin recovery chains you may still need.
 
-#### Local imports
-
-Use the import button or drag in files to install a **ZIP archive** or **complete mod folder** containing a valid `mod.json`. Imports check the definition, folder structure, and file paths. Damaged packages, unsafe paths, disguised core components, and DDS / VTF skins imported on this page produce explicit errors.
-
-Local mod imports and VTF skin imports support different inputs: extract RAR / 7z mod archives into complete folders first. Install skins on the corresponding DDS / VTF page.
-
-<a id="en-skins"></a>
-
-### DDS and VTF skin installation
-
-Each format has its own page with an **import → review the plan → install** workflow. Close the game before installing, then check the target folder and file list. Both pages provide progress, operation logs, and installation records.
-
-| Page | Accepted inputs | Structure to retain |
-|---|---|---|
-| DDS installer | A `.dds` file, a ZIP containing DDS files, or a skin folder | Original DDS filenames used to match game resources |
-| VTF installer | A complete skin folder, or a readable ZIP, 7z, RAR, or other supported archive with compatible assets | Original `materials / models` folder structure |
-
-#### DDS installation
-
-TFX checks DDS headers, compression formats, dimensions, recognized resource locations, and resolution coverage. The plan shows file counts, target resources, and validation results. Invalid formats or unmatched resources do not become ready to install.
-
-Replacing a skin for the same weapon also handles resources covered by the previous skin. Parts omitted by the new package need reliable original data to restore them, preventing old lettering, sights, and similar details from remaining. If another tool has already changed the game and no trusted original backup is available, the page asks you to select original resource backups or open Steam verification and check again afterwards.
-
-These checks use recognized game-resource layouts. They do not mean any DDS file, game version, or skin package can be installed directly; TFX reports the result for the selected package.
-
-#### VTF installation
-
-TFX checks compatible assets inside the archive rather than accepting a package solely because its extension is ZIP, 7z, or RAR. Animated VTF skins and associated models are supported. Content and folder checks precede generation of separate skin data and recovery records.
-
-Damaged archives, packages without compatible files, and incomplete structures produce errors. Keep the author's `materials / models` structure instead of renaming everything or flattening it into one folder.
-
-#### Switching skin formats
-
-For the same weapon, DDS → VTF and VTF → DDS replacement share an installation workflow that handles previous resources and model entries and retains recovery records. Unconfirmed original data or unfinished installations require restoration or repair first.
-
-Importing the wrong format clears the pending selection and reports the error; it does not install the previously selected package. If another tool changes game resources outside TFX, a trusted original state may need to be restored before installation can continue.
-
-<a id="en-recovery"></a>
-
-### Backups, restoration, and skin launch protection
-
-#### Installation backups
-
-DDS and VTF operations back up required resources before installation and verify writes afterwards. Each page initially shows the latest **5 records**; expand the history to view the rest.
-
-- **Restore:** Restore the installation described by a record. When installations overlap, restore newer records first. Cross-format restoration handles the related DDS / VTF resources together.
-- **Delete:** Each record has a delete control for completed historical backups that no longer support recovery. Backups required by the current skin, unfinished installation, or cross-format recovery cannot be deleted directly.
-- **Locate:** Open the backup folder or read the operation log. Avoid manually removing files still needed by an active recovery workflow.
-
-If the game starts, another program changes a target, or verification fails during installation, TFX stops committing and retains recovery information. Follow the page's recovery prompt for unfinished work; turning off launch protection does not bypass this check.
-
-#### Skin launch protection
-
-In **Preferences → Skin launch protection**, control pre-launch settings restoration for both DDS and VTF skins.
-
-TFX records the current skin compatibility settings on the first skin installation. When protection is enabled, it restores those recorded values before a game launch from TFX. You can inspect the record, refresh its status, and record your current settings again after closing the game.
-
-These are your recorded choices, not a fixed compatibility preset suitable for every skin. Confirm the skin displays correctly in-game before capturing a new record. Protection covers `setting.stream_memory` and `setting.mat_picmip`; it does not lock in-game graphics options and does not require an extra UI mod.
-
-**The protection switch saves immediately.** Closing Preferences or choosing Cancel does not undo that switch. Unsaved previews of normal preferences such as theme and language can still be cancelled.
-
-<a id="en-settings"></a>
-
-### Appearance, languages, and preferences
-
-#### Frosted interface and themes
-
-TFX uses translucent frosted panels, rounded cards, and short page transitions. Navigation, Preferences, and action feedback have transitions, with reduced motion respected when enabled by the system. The outer window frame is rectangular. Drag its blank top area to move it, or double-click to maximize or restore it.
-
-Preview ten palettes in Preferences: **Aurora, Abyss, Nebula, Sakura, Ember, Grove, Sandstone, Graphite, Glacier, and Mist**. The last two are light themes. Save to retain a selection; Cancel restores the appearance before the unsaved preview.
-
-#### Five interface languages
-
-Supported languages are **简体中文, 繁體中文, English, Deutsch, and Français**. The first-use language follows the system language rather than your IP or location. Non-Chinese systems default to English, including German and French systems. A manually saved choice takes priority. Language and mod-sorting menus use the app's own styling.
-
-#### Preference controls
-
-The search field at the top of Preferences finds language, theme, launch, and other options. Controls are grouped by purpose:
-
-| Group | Available controls |
+| Situation | What to check |
 |---|---|
-| Appearance & language | Interface language; preview and save ten themes |
-| Game launch | Open / change game folder; Northstar arguments; exit TFX after launch; close Origin when TFX exits |
-| Skin launch protection | Restore switch; view record; refresh status; capture current settings |
-| Northstar updates | Automatic checks and updates; retained files; refresh version information; reinstall the selected client |
-| Connection & network | Flush DNS cache; choose a DNS provider or automatic configuration and apply it explicitly |
-| Maintenance | Clear installation cache; end game / Origin processes; restart TFX |
-| About | Author; email; GitHub Issues; special thanks; version; TFX update check |
+| Game not detected | Select the folder containing `Titanfall2.exe`. |
+| Selected network is not installed | Install that specific client, then launch. |
+| Steam / EA opens without the game | Complete any pending platform confirmation, then read TFX's launch result before retrying. |
+| Download or server list unavailable | Check connectivity and refresh; cached data has its own timestamp. |
+| Package is rejected | Read the content error; keep original filenames / structure and import one compatible package. |
+| Original resource is missing | Use the selective repair flow or supply a verified original backup. |
+| Historical skin is unavailable | Required recovery data is missing, damaged or disconnected; reinstall that skin. |
+| Interrupted operation reported | Recover it in the Arsenal before another installation. |
+| Skin still looks like a Mod | Disable the overriding Mod in My Mods. |
+| Lower resource use during play | Enable exit after a successful game launch. |
 
-DNS tools change system network configuration only after an explicit action and confirmation. Applying a DNS change may require Windows administrator permission. Clearing installation caches means required packages will be fetched again later. Use process termination and reinstallation tools according to their prompts.
+## Build, support and acknowledgments
 
-Normal preferences are saved only after **Save changes** writes successfully. If saving fails, Preferences remains open with your input retained. **Cancel** reverses unsaved previews.
-
-#### Hold to restore defaults
-
-**Restore default preferences** requires a continuous **2-second hold**. Releasing early, moving away, losing focus, or closing Preferences cancels it. Completion immediately saves default appearance, language, and launch preferences while keeping the game folder, cache paths, installed mods, and skins. It does not uninstall the app, delete the game, or restore original skins.
-
-<a id="en-help"></a>
-
-### Updates, storage, and troubleshooting
-
-#### Two kinds of updates
-
-- **Northstar client updates:** Update the selected channel's files in the game folder through the home page and Northstar update preferences.
-- **TFX app updates:** **Preferences → About → App updates** reads [this repository's latest stable Release](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest). Results distinguish up to date, update available, no published release, and network failure. Choosing a download opens the official GitHub link; TFX does not silently replace the running app.
-
-Releases provide the application, matching source archive, English acceptance and attribution document, and SHA-256 checksums. Use the release EXE. GitHub's automatically generated source download is for development, not a runnable Windows application.
-
-#### Storage and cleanup
-
-Preferences are stored in the Windows application data directory. Northstar download caches and client transaction data, Thunderstore caches, and some mod-state backups prefer `D:/TFX-Launcher-Data` when drive D: exists. DDS / VTF skin backups and cross-format recovery records remain under `fold-launcher` in Windows application data; client copies for fast switching use the `.tfx` area inside the game folder. Use **Open backup folder** on each skin page to locate its actual storage.
-
-Recovery files support actual restoration workflows. Do not treat the entire application data directory or the game's `.tfx` directory as disposable cache.
-
-To reclaim space, use **Maintenance → Clear installation cache** and deletable historical backups on the skin pages. Restoring default preferences preserves these resources.
-
-#### Common issues
-
-| Situation | Suggested action |
-|---|---|
-| Game not found | Select the root containing `Titanfall2.exe` and check that Steam / EA installation is complete |
-| Northstar says not installed | Install the selected channel first; having one client does not mean both are installed |
-| Launch requires platform confirmation | Finish the sign-in or launch confirmation in Steam / EA, then return to the result |
-| Game process exists but the Northstar menu is unconfirmed | Close the game, read the launch error, check the selected client's state, and refresh or reinstall if necessary |
-| Server list / mod catalog fails to load | Check connectivity and refresh later; cached counts and timestamps are not a current live result |
-| DDS / VTF import errors or disabled install button | Use the matching page, retain names / structure, and read validation results and logs |
-| Old skin parts remain or original data is missing | Restore existing records or supply reliable original backups; check again after Steam verification |
-| Unfinished installation or dependent backup reported | Restore newer records as prompted and retain related backups; do not delete recovery files directly |
-| Want lower launcher usage during play | Enable exit after launch and save; it applies on the next successful launch |
-
-Steam verification repairs original game files and may overwrite modified skin resources. Follow TFX's instructions when arranging verification and restoration, then check the installation plan again. Third-party mods, skins, and online services are maintained by their authors; compatibility still depends on package contents, client versions, and service availability.
-
-<a id="en-project"></a>
-
-### Building, support, and credits
-
-#### Development and builds
-
-Use Windows x64, Node.js **22.12 or newer**, and npm. From the repository root:
+On Windows x64 with Node.js **22.12 or newer**:
 
 ```powershell
 npm ci
 npm test
 npm start
-# Build the Windows x64 portable application
 npm run dist
 ```
 
-See [BUILD.md](BUILD.md) for full requirements, outputs, and license handling. Keep the tools, client data, and licenses in `src/tools/`; they are needed for builds and offline first installation. Dependencies are pinned for the release. This repository's `npm test` covers 592 tests; the English acceptance and attribution document attached to the Release describes the scope and limits of actual-machine validation.
+See [BUILD.md](BUILD.md) for build requirements and license handling. Keep required tools, client data and their licenses in `src/tools/`. The release acceptance document records the validation scope and known limits; automated checks do not replace every possible real-game combination.
 
-#### Support
+**Author: HarryCao**. For a problem or suggestion, open a [GitHub Issue](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) or email **harrycaoguitar@gmail.com**. Include the TFX version, selected network, steps and error message. Review logs for personal paths before sharing.
 
-Author: **HarryCao**.
+**Special thanks**, in order:
 
-For problems or suggestions, open a [GitHub Issue](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) or email **harrycaoguitar@gmail.com**. Include the TFX version, selected client, reproduction steps, and error text. Review logs for personal paths before sharing them.
+- **Northstar**
+- **NorthstarCN**
+- **Glock-雨夜**
+- **HK560**
+- **zxcPandora**
 
-#### Special thanks
+Thank you to these teams and contributors, and to everyone who tested TFX or shared feedback.
 
-| Acknowledgments |
-|---|
-| Northstar |
-| NorthstarCN |
-| Glock-雨夜 |
-| HK560 |
-| zxcPandora |
+TFX is a **GPL-3.0-or-later** derivative of ViperCN 1.11.3. Mod management, Thunderstore integration, skin installation and dual-client management include new implementations written for this project. Inherited attribution, license and corresponding-source obligations remain. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Official clients, Mods, Electron, fonts and archive tools retain their own licenses. The bundled Global client omits the optional Discord Rich Presence plugin whose redistribution license was not clearly declared; official online updates retain their official release contents.
 
-Thank you to these teams and contributors, and to everyone who tested TFX or provided feedback.
-
-#### License and provenance
-
-TFX is a **GPL-3.0-or-later** derivative of ViperCN 1.11.3. Mod management, Thunderstore browsing and installation, DDS / VTF installation, and dual-client management include new implementations written for this project. This work does not remove attribution, license, or corresponding-source obligations for inherited code, and does not make the entire application a clean-room rewrite.
-
-See [LICENSE](LICENSE) for the project license and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance and third-party notices. Official clients, downloaded mods, the Electron runtime, fonts, and archive tools retain their own licenses. The Global client bundled with 1.0.2 omits the optional Discord Rich Presence plugin because its redistribution license was not clearly declared. Core client files and the community-server menu remain included; full updates downloaded from official releases are installed with their official contents.
-
-TFX is a community project and is not affiliated with or endorsed by Respawn Entertainment or Electronic Arts. The TITANFALL 2 name, logo, and game assets belong to their respective rights holders.
+TFX is a community project and is not affiliated with or endorsed by Respawn Entertainment or Electronic Arts. TITANFALL 2 names, identification artwork and game assets belong to their respective rights holders.

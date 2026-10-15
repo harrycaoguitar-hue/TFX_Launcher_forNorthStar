@@ -16,6 +16,7 @@ var settings = {
 	uiLanguage: "zh-CN",
 	modSort: "added",
 	northstarRegion: "cn",
+	independentServerMods: false,
 	nsupdate: true,
 	originkill: false,
 	zip: "/northstar.zip",
@@ -46,11 +47,12 @@ window.addEventListener("DOMContentLoaded", () => setpath(Boolean(settings.gamep
 ipcRenderer.on("changed-settings", (e, new_settings) => {
 	// attempt to set `settings` to `new_settings`
 	try {
+		const previousTheme=settings.theme;
 		settings = {
 			...settings,
 			...new_settings
 		}
-		if (window.Themes && Object.prototype.hasOwnProperty.call(new_settings, "theme")) Themes.load();
+		if (window.Themes && Object.prototype.hasOwnProperty.call(new_settings, "theme") && previousTheme!==settings.theme) Themes.load();
 	}catch(e) {}
 })
 
@@ -281,8 +283,8 @@ ipcRenderer.on("unknown-error", (event, err) => {
 
 // Local selection is passed to the verified import service. Online package
 // planning and cancellation are owned by the Thunderstore services.
-function installmod() { setButtons(false); ipcRenderer.send("install-mod"); }
-function installFromPath(source) { setButtons(false); ipcRenderer.send("install-from-path", source); }
+function installmod() { if(window.SkinImport){Fold.navigate("skins");SkinImport.select();}else{setButtons(false);ipcRenderer.send("install-mod");} }
+function installFromPath(source) { if(window.SkinImport){Fold.navigate("skins");SkinImport.inspect(source);}else{setButtons(false);ipcRenderer.send("install-from-path", source);} }
 
 // Frontend part of settings a new game path
 ipcRenderer.on("newpath", (event, newpath) => {

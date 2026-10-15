@@ -8,6 +8,7 @@ const isRunning = require("./is_running");
 const protection = require("./dds-guard");
 const gate = require("./dds-operation-gate");
 const {OfflineSkinPack,productionDirectories}=require("./offline-skin-pack");
+const skinPreview=require("./skin-conflict-preview");
 
 let sender;
 const engine = new DdsEngine({
@@ -26,21 +27,23 @@ function currentPackage(input={}) {
   return selectedPackageId;
 }
 async function response(event,action) {
-  if(engine.busy) return {ok:false,error:"另一个皮肤操作正在执行"};
+  if(engine.busy||engine.sharedImportBusy) return {ok:false,error:"另一个皮肤操作正在执行"};
   sender=event.sender;
   try{return {ok:true,...await action()};}
-  catch(err){const message=errorText(err);if(sender&&!sender.isDestroyed())sender.send("dds-progress",{phase:"error",percent:0,message});let current={};try{current=await status();}catch{}return {ok:false,...current,error:message,selectionRevision,...(!selectedPackageId?{package:null,original:null}:{})};}
+  catch(err){const message=errorText(err);if(sender&&!sender.isDestroyed())sender.send("dds-progress",{phase:"error",percent:0,message});let current={};try{current=await status();}catch{}return {ok:false,...current,error:message,selectionRevision,...(!selectedPackageId?{package:null,original:null,conflictPreview:null}:{})};}
 }
 const status = async(root=gamePath())=>{
   // Stamp the package snapshot before awaiting, so a delayed status response can
   // never claim to describe a newer import attempt.
   const revision=selectionRevision,packageId=selectedPackageId,error=selectionError;
-  return {...await engine.status(root,packageId),protection:await protection.status(root),selectionRevision:revision,selectionError:error};
+  const analysis=await engine.status(root,packageId);
+  const conflictPreview=await skinPreview.forStatus({format:"dds",engine,gamePath:root,packageId,analysis,settings:settings(),getSettings:settings,isCurrent:()=>revision===selectionRevision&&packageId===selectedPackageId&&root===gamePath()&&inspectingRevision===undefined});
+  return {...analysis,conflictPreview,protection:await protection.status(root),selectionRevision:revision,selectionError:error};
 };
-async function importResponse(event,readPackage) {
-  if(engine.busy||gate.busy)return {ok:false,error:"另一个皮肤操作正在执行",selectionRevision};
+async function importResponse(event,readPackage,{sharedImport=false}={}) {
+  if(engine.busy||gate.busy||engine.sharedImportBusy&&!sharedImport)return {ok:false,error:"另一个皮肤操作正在执行",selectionRevision};
   const revision=clearSelection();inspectingRevision=revision;sender=event.sender;
-  const empty={package:null,original:null,selectionRevision:revision};
+  const empty={package:null,original:null,conflictPreview:null,selectionRevision:revision};
   try {
     const pkg=await readPackage();
     if(revision!==selectionRevision)return {ok:false,...empty,error:"DDS 选择已更新，请重新确认当前皮肤包"};
@@ -54,9 +57,13 @@ async function importResponse(event,readPackage) {
   }finally{if(inspectingRevision===revision)inspectingRevision=undefined;}
 }
 ipcMain.handle("dds-status",async()=>({ok:true,...await status()}));
+ipcMain.handle("dds-preview",async(_event,input={})=>{
+  try {currentPackage(input);return {ok:true,...await status()};}
+  catch(error){return {ok:false,error:errorText(error),package:null,conflictPreview:null,selectionRevision};}
+});
 ipcMain.handle("dds-clear",async()=>{
-  if(engine.busy||gate.busy)return {ok:false,error:"另一个皮肤操作正在执行",selectionRevision};
-  clearSelection();return {ok:true,package:null,original:null,selectionRevision,selectionError:""};
+  if(engine.busy||gate.busy||engine.sharedImportBusy)return {ok:false,error:"另一个皮肤操作正在执行",selectionRevision};
+  clearSelection();return {ok:true,package:null,original:null,conflictPreview:null,selectionRevision,selectionError:""};
 });
 ipcMain.handle("dds-select",async(event,options={})=>importResponse(event,async()=>{
   const folder=options.kind==="folder";
@@ -116,4 +123,8 @@ ipcMain.handle("dds-originals-select",async(event,input={})=>response(event,asyn
   return await status(root);
 })));
 require("./skin-resource-download").register("dds",{engine,currentPackage,revision:()=>selectionRevision,gamePath,status,response,install:installSelected});
+// Shared importer adopts a package through the same revision-safe boundary.
+engine.importSelection=(event,source)=>importResponse(event,()=>engine.inspect(source),{sharedImport:true});
+engine.invalidateSelection=()=>clearSelection();
+engine.isImportBusy=()=>Boolean(engine.busy||engine.sharedImportBusy||gate.busy||inspectingRevision!==undefined);
 module.exports=engine;

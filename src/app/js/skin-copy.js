@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const pairs = [
-    ['上次跨格式换肤尚未完成，请先恢复下方的跨格式备份。','The previous skin switch is incomplete. Restore the skin switch backup below first.'],
+    ['上次跨格式换肤尚未完成，请先在武器库中恢复。','The previous skin switch is incomplete. Recover it in the Arsenal first.'],
     ['跨格式恢复','Skin switch recovery'],
     ['跨格式皮肤恢复记录无法读取，请保留备份并修复记录','Skin switch recovery records could not be read. Keep the backups and repair the records.'],
     ['跨格式皮肤恢复记录无效，已停止资源写入','Invalid skin switch recovery record. Resource writes were stopped.'],
