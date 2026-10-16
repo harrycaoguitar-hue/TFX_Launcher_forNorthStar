@@ -3,6 +3,7 @@
   'use strict';
   window.VyraLocales.messages['client.switchFailed'] = ['北极星客户端切换未完成', 'Northstar client switch incomplete'];
   const pairs = [
+    ["游戏在主菜单加载完成前退出。若不是手动关闭，请先排查最近启用的 Mod 或皮肤，再检查 EA App / Steam 登录提示与启动诊断。", "The game exited before the main menu finished loading. If you did not close it, check recently enabled Mods or skins first, then EA App / Steam sign-in prompts and the launch diagnostics."],
     ['皮肤兼容性规则的路径或校验值无效。', 'The skin compatibility rule contains an invalid path or verification value.'],
     ['皮肤兼容性原始文件校验失败。', 'The original skin manifest failed verification.'],
     ['皮肤兼容性文件不是有效 UTF-8。', 'The skin manifest is not valid UTF-8.'],

@@ -30,6 +30,48 @@ test("stable success retains actual timing; vanilla omits inapplicable Northstar
   f.manager.begin("vanilla"); f.manager.update({region:"cn"}); f.manager.finish();
   assert.equal(f.manager.report().region, null); assert(!f.manager.report().stages.some(s => ["northstar", "client"].includes(s.code)));
 });
+test("official Mod diagnostics retain component and readiness stages, while clean and legacy records stay vanilla", () => {
+  const f = fixture();
+  f.manager.begin("vanilla", {officialMods:true});
+  assert.equal(f.manager.report().officialMods, true);
+  assert.equal(f.manager.report().schema, 1);
+  assert(f.manager.report().stages.some(s => s.code === "client"));
+  assert(f.manager.report().stages.some(s => s.code === "northstar"));
+  f.manager.stage("client", "observed"); f.advance(200); f.manager.stage("northstar", "observed"); f.manager.finish();
+  assert.equal(f.manager.report().stages.find(s => s.code === "northstar").status, "observed");
+  assert.equal(f.manager.report().stages.find(s => s.code === "northstar").elapsedMs, 200);
+  const persisted = f.manager.report(), restored = new LaunchDiagnostics();
+  assert.deepEqual(restored.load(persisted), persisted);
+  const legacy = {...persisted}; delete legacy.officialMods;
+  assert.equal(sanitizeReport(legacy).officialMods, false);
+  for (const value of ["true",1,{},null]) assert.equal(sanitizeReport({...persisted,officialMods:value}).officialMods, false);
+  assert.equal(sanitizeReport({...persisted,gameVersion:"northstar",officialMods:true}).officialMods, false);
+  f.manager.begin("northstar", {officialMods:true}); assert.equal(f.manager.report().officialMods, false);
+  f.manager.begin("vanilla"); assert.equal(f.manager.report().officialMods, false);
+  assert(!f.manager.report().stages.some(s => ["client", "northstar"].includes(s.code)));
+});
+test("official readiness failures preserve bounded evidence and Mod/client recovery actions", () => {
+  for (const [code,outcome,known,phase] of [["OFFICIAL_MOD_NOT_READY","official-mod-not-ready",false,"northstar"],["VANILLA_CLIENT_NOT_INSTALLED","client-failed",true,"client"],["VANILLA_RUNTIME_OUTDATED","client-failed",true,"client"]]) {
+    const f = fixture(); f.manager.begin("vanilla", {officialMods:true}); f.manager.stage(phase,"active");
+    f.manager.finish(Object.assign(Error("private official Mod details"), {code}));
+    const report = f.manager.report();
+    assert.equal(report.outcome.code,outcome); assert.equal(report.outcome.evidenceCode,code); assert.equal(report.outcome.causeKnown,known);
+    assert(report.outcome.actions.includes("client"));
+    if(code === "OFFICIAL_MOD_NOT_READY") assert(report.outcome.actions.includes("mods"));
+    assert(!JSON.stringify(report).includes("private official Mod details"));
+    assert.equal(report.stages.find(s => s.code === phase).status,"failed");
+  }
+  const f = fixture(); f.manager.begin("vanilla"); f.manager.finish(Object.assign(Error(), {code:"VANILLA_CLIENT_NOT_INSTALLED"}));
+  assert(!f.manager.report().outcome.actions.includes("client"));
+  assert(f.manager.report().outcome.actions.includes("settings"));
+});
+test("clean proxy recovery has explicit evidence and local settings/retry actions", () => {
+  const f=fixture(); f.manager.begin("vanilla"); f.manager.stage("client","active");
+  f.manager.finish(Object.assign(Error("private recovery location"),{code:"CLEAN_PROXY_RECOVERY"}));
+  const report=f.manager.report();
+  assert.equal(report.outcome.code,"preflight-failed");assert.equal(report.outcome.causeKnown,true);assert.equal(report.outcome.evidenceCode,"CLEAN_PROXY_RECOVERY");
+  assert.deepEqual(report.outcome.actions,["settings","retry"]);assert.doesNotMatch(JSON.stringify(report),/private recovery location/);
+});
 test("timeouts, unconfirmed core and early close never pretend the root cause is known", () => {
   for (const [code, outcome] of [["LAUNCH_TIMEOUT", "timeout"], ["NORTHSTAR_NOT_READY", "northstar-not-ready"], ["LAUNCH_EARLY_EXIT", "game-closed"], ["LAUNCHER_EARLY_EXIT", "spawn-failed"], ["EA_START_TIMEOUT", "ea-failed"]]) {
     const f = fixture(); f.manager.stage("game", "active"); f.advance(120000); f.manager.finish(Object.assign(Error("private detail must not enter record"), {code}));
@@ -39,6 +81,30 @@ test("timeouts, unconfirmed core and early close never pretend the root cause is
   assert.equal(failureOutcome({code:"NORTHSTAR_CORE_DISABLED"}, "northstar").causeKnown, true);
   assert.equal(failureOutcome({code:"NORTHSTAR_CORE_DUPLICATE"}, "northstar").causeKnown, true);
   assert.equal(failureOutcome({code:"EA_NOT_INSTALLED"}, "ea").causeKnown, true);
+});
+test("early game and launcher exits offer Mod troubleshooting only for loader-based launches", () => {
+  for (const [gameVersion, options, expected] of [
+    ["northstar", {}, ["retry", "mods", "platform", "issue"]],
+    ["vanilla", {officialMods:true}, ["retry", "mods", "platform", "issue"]],
+    ["vanilla", {}, ["retry", "platform", "issue"]]
+  ]) {
+    const f = fixture(); f.manager.begin(gameVersion, options);
+    f.manager.finish(Object.assign(Error("private Mod details"), {code:"LAUNCH_EARLY_EXIT"}));
+    const report = f.manager.report();
+    assert.deepEqual(report.outcome.actions, expected);
+    assert.equal(report.outcome.causeKnown, false);
+    assert.equal(report.outcome.code, "game-closed");
+    assert.equal(report.outcome.evidenceCode, "LAUNCH_EARLY_EXIT");
+    assert.deepEqual(sanitizeReport(report).outcome, report.outcome);
+    assert(!JSON.stringify(report).includes("private Mod details"));
+    f.manager.begin(gameVersion, options);
+    f.manager.finish(Object.assign(Error(), {code:"LAUNCHER_EARLY_EXIT"}));
+    const launcherReport = f.manager.report();
+    assert.equal(launcherReport.outcome.actions.includes("mods"), gameVersion === "northstar" || options.officialMods === true);
+    assert.equal(launcherReport.outcome.code, "spawn-failed");
+    assert.equal(launcherReport.outcome.causeKnown, false);
+    assert.equal(launcherReport.outcome.evidenceCode, "LAUNCHER_EARLY_EXIT");
+  }
 });
 test("retry replaces the prior report without accumulating histories and deduplicates polling updates", () => {
   const f = fixture(), previous = f.manager.report().id; f.manager.stage("skins", "active"); f.manager.stage("client", "active"); f.manager.stage("client", "observed"); f.manager.stage("skins", "active");

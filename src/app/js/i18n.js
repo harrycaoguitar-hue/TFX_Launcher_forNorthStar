@@ -78,6 +78,8 @@
     [/^(.+)：不支持的纹理尺寸目录$/u,'$1：不支持的皮肤尺寸目录']
   ];
   const patterns = [
+    [/^游戏在主菜单加载完成前退出（退出码 (.+)）。若不是手动关闭，请先排查最近启用的 Mod 或皮肤，再检查 EA App \/ Steam 登录提示与启动诊断。$/u,'The game exited before the main menu finished loading (code $1). If you did not close it, check recently enabled Mods or skins first, then EA App / Steam sign-in prompts and the launch diagnostics.'],
+    [/^游戏在主菜单加载完成前退出（(.+)）。若不是手动关闭，请先排查最近启用的 Mod 或皮肤，再检查 EA App \/ Steam 登录提示与启动诊断。$/u,'The game exited before the main menu finished loading ($1). If you did not close it, check recently enabled Mods or skins first, then EA App / Steam sign-in prompts and the launch diagnostics.'],
     [/^(.+)：皮肤资源路径包含链接或非普通文件，已停止资源读写。$/u,"$1: skin resource path contains a link or non-regular file. Resource access was stopped."],
     [/^EA App 未能启动，请打开并登录 EA App 后重试。（(.+)）$/u,"EA App could not start. Open EA App, sign in, and try again. ($1)"],
     [new RegExp("^(.+)：缺少游戏资源，可选择原版资源补齐或让 Steam 恢复后继续安装$","u"),"$1: missing game resource. Restore it from original resources or through Steam, then continue installation."],

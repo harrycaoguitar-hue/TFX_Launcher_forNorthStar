@@ -155,7 +155,7 @@
   $('ddsProtectionRefresh').addEventListener('click',() => refresh({fresh:true}));
   ipcRenderer.on('launch-guard-result',(_event,result) => {
     if (!result) return;
-    if (!result.ok && result.scope === 'client') new Toast({scheme:'error',title:I18n.t('client.switchFailed'),description:I18n.text(result.error || result.reason || ''),timeout:9000});
+    if (!result.ok && result.scope === 'client') new Toast({scheme:'error',title:I18n.t(window.OfficialErrors?.has(result)?'official.errorTitle':'client.switchFailed'),description:window.OfficialErrors?.has(result)?window.OfficialErrors.text(result):I18n.text(result.error || result.reason || ''),timeout:9000});
     else if (!result.ok) toast('launchFailed',true,result.error || result.reason || t('operationError'));
     else if (result.restored) toast('restored');
     refreshVisible();

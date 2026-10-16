@@ -17,7 +17,7 @@ var mods;
   const normalized = value => String(value ?? "").normalize("NFKC").toLocaleLowerCase();
   const copy = key => I18n.t("mods." + key);
   const mode = value => ["added", "name", "enabled"].includes(value) ? value : "added";
-  const context = () => JSON.stringify([settings.gamepath || '', settings.northstarRegion || 'cn', settings.independentServerMods === true]);
+  const context = () => JSON.stringify([settings.gamepath || '', settings.modProfileServer || settings.northstarRegion || 'cn', settings.independentServerMods === true]);
   const settingsBusy = () => Boolean(window.Settings?.saving);
   const encode = value => encodeURIComponent(String(value ?? "")).replace(/_/g, "%5F").replace(/%/g, "_");
   const label = mod => mod.package?.manifest?.name || mod.package?.package_name || mod.manifest_name || mod.name;

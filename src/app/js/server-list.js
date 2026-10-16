@@ -179,7 +179,7 @@
     changingRegion=true;
     for(const group of document.querySelectorAll('.servers-region')) group.setAttribute('aria-busy','true');
     try {
-      const response=await Settings.savePatch({northstarRegion:next});
+      const response=await Settings.savePatch({northstarRegion:next,modProfileServer:next});
       if(!response.ok || response.settings.northstarRegion!==next){
         const reason=Settings.modStateError(response.code,'settings.regionChangeFailed');
         new Toast({key:'server-region-change',scheme:'error',title:I18n.t('settings.regionChangeFailed'),description:I18n.t(reason),timeout:7000});

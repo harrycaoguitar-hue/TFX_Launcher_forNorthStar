@@ -16,6 +16,8 @@ var settings = {
 	uiLanguage: "zh-CN",
 	modSort: "added",
 	northstarRegion: "cn",
+	modProfileServer: "cn",
+	vanillaModsEnabled: false,
 	independentServerMods: false,
 	nsupdate: true,
 	originkill: false,
@@ -61,7 +63,10 @@ if (! navigator.onLine) {
 	ipcRenderer.send("no-internet");
 }
 
-function exit() {ipcRenderer.send("exit")}
+function exit() {
+	if (window.Settings?.canLeave && !window.Settings.canLeave(exit)) return;
+	ipcRenderer.send("exit");
+}
 
 let checked_for_ns_update = new Date().getTime();
 
@@ -84,6 +89,7 @@ function open_gamepath() {
 }
 
 function relaunch() {
+	if (window.Settings?.canLeave && !window.Settings.canLeave(relaunch)) return;
 	ipcRenderer.send("relaunch");
 }
 
@@ -106,7 +112,15 @@ function launch() {
 }
 
 // Tells the main process to launch the vanilla game
-function launchVanilla() {if (launchPending || is_running || window.VyraClient?.busy) return; if (!gameDirectoryReady) {setpath(); return;} window.VyraLaunch?.begin("vanilla"); ipcRenderer.send("launch-vanilla")}
+function launchVanilla() {
+	if (window.OfficialClient) return window.OfficialClient.activate(() => {
+		window.VyraLaunch?.begin("vanilla");
+		ipcRenderer.send("launch-vanilla");
+	});
+	if (launchPending || is_running || window.VyraClient?.busy) return;
+	if (!gameDirectoryReady) {setpath(); return;}
+	window.VyraLaunch?.begin("vanilla"); ipcRenderer.send("launch-vanilla");
+}
 
 let log = console.log;
 
@@ -146,9 +160,10 @@ function setButtons(state, enable_gamepath_btns) {
 		for (const button of document.querySelectorAll(".playBtn")) button.disabled = true;
 	}
 	if (launchPending) {
-		for (const button of document.querySelectorAll('[data-launch-region],[data-server-region]')) button.disabled = true;
+		for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-vanilla-mods],[data-mode]')) button.disabled = true;
 	}
 	window.VyraClient?.renderAction();
+	window.OfficialClient?.renderAction();
 	window.mods?.setAvailability(state);
 }
 

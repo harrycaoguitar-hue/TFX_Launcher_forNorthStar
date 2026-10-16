@@ -1,0 +1,7 @@
+{
+    "name": "VanillaPlus",
+    "version_number": "2.5.1",
+    "website_url": "https://github.com/NachosChipeados/NP.VanillaPlus",
+    "description": "THIS MOD HAS SPECIAL INSTALL INSTRUCTIONS IN THE DESCRIPTION, PLEASE READ THEM. Modified Northstar.Client to load Client-Side mods on Vanilla servers",
+    "dependencies": []
+}

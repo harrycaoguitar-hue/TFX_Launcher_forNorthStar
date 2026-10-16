@@ -8,7 +8,7 @@ function fixture(t, custom, installed) {
 	fs.mkdirSync(profile, {recursive: true}); if (installed) fs.writeFileSync(path.join(gamepath, "NorthstarLauncher.exe"), "fixture, never executed"); app.getPath = () => base;
 	let options, guardCalls = 0;
 	const engine = {install: async request => {const captured = options.profile(); await options.guard(captured); guardCalls++; return {name: `${request.author}-${request.package_name}-${request.version}`, fancy_name: request.package_name, profileDirectory: captured.profileDirectory};}, remove: async () => true, cancel: () => true, cancelAll: () => {}};
-	const modules = {electron: {app, ipcMain}, "./settings": () => config, "./northstar-region": require("../src/modules/northstar-region"), "./launch-session": require("../src/modules/launch-session"), "./is_running": {snapshot: async () => ({ok: true, processes: []})}, "./dds-operation-gate": {run: (_label, action) => action()}, "../win": () => ({send: (channel, value) => events.push([channel, value]), confirm: async () => true}), "../lang": () => "plugins", "./thunderstore-transport": {createRequest: () => () => {throw Error("Mock installer never downloads");}}, "./thunderstore": {planInstall: async () => ({})}, "./thunderstore-install": {...require("../src/modules/thunderstore-install"), createInstaller: value => {options = value; return engine;}}};
+	const modules = {electron: {app, ipcMain}, "./settings": () => config, "./server-mod-profiles": require("../src/modules/server-mod-profiles"), "./northstar-region": require("../src/modules/northstar-region"), "./launch-session": require("../src/modules/launch-session"), "./is_running": {snapshot: async () => ({ok: true, processes: []})}, "./dds-operation-gate": {run: (_label, action) => action()}, "../win": () => ({send: (channel, value) => events.push([channel, value]), confirm: async () => true}), "../lang": () => "plugins", "./thunderstore-transport": {createRequest: () => () => {throw Error("Mock installer never downloads");}}, "./thunderstore": {planInstall: async () => ({})}, "./thunderstore-install": {...require("../src/modules/thunderstore-install"), createInstaller: value => {options = value; return engine;}}};
 	const context = {require: name => modules[name] || require(name), module: {exports: {}}, console, URL}; vm.runInNewContext(fs.readFileSync(sourceFile, "utf8"), context, {filename: sourceFile});
 	t.after(() => {assert.ok(path.resolve(base).startsWith(path.resolve(root) + path.sep)); fs.rmSync(base, {recursive: true, force: true});});
 	return {packages: context.module.exports, config, events, ipcMain, profile, gamepath, get guardCalls() {return guardCalls;}, get options() {return options;}};
@@ -24,6 +24,12 @@ test("the IPC adapter rejects a missing client and emits one clear failure witho
 });
 test("the packages adapter refuses a directory in place of NorthstarLauncher.exe", async t => {
 	const f = fixture(t, false, false); fs.mkdirSync(path.join(f.gamepath, "NorthstarLauncher.exe")); await assert.rejects(f.packages.install("https://thunderstore.io/package/download/Pilot/Example/1.0.0/", "Pilot", "Example", "1.0.0"), error => error.code === "CLIENT_MISSING");
+});
+test("the packages adapter binds official Mod imports to the same shared profile and rejects a server change", async t => {
+	const f = fixture(t, true, true); f.config.modProfileServer = "official";
+	const captured = f.options.profile(); assert.equal(captured.region, "official"); assert.equal(captured.profileDirectory, fs.realpathSync(f.profile));
+	await f.options.guard(captured); f.config.modProfileServer = "global";
+	await assert.rejects(f.options.guard(captured), error => error.code === "PROFILE_CHANGED");
 });
 
 test.after(() => {

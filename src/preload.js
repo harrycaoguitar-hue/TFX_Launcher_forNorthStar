@@ -19,7 +19,7 @@ const sendChannels = new Set([
 const receiveChannels = new Set([
 	"window-state",
 	"dds-progress", "vtf-progress", "skin-resource-progress", "skin-import-progress", "weapon-library-progress",
-	"launch-guard-result", "launch-status", "launch-diagnostic", "launch-compatibility", "northstar-client-progress",
+	"launch-guard-result", "launch-status", "launch-diagnostic", "launch-compatibility", "northstar-client-progress", "vanilla-client-progress",
 	"alert", "changed-settings", "confirm", "download-cancelled",
 	"duped-mod", "failed-mod", "gamepath-lost", "gamepath-status", "gamepath-error", "installed-mod",
 	"is-running", "legacy-duped-mod", "log", "mods", "newpath",
@@ -32,7 +32,7 @@ const invokeChannels = new Set([
 	"skin-import-select", "skin-import-inspect", "skin-import-install", "skin-import-clear", "weapon-library-list", "weapon-library-restore", "weapon-library-prune",
 	"launcher-update-check", "launcher-update-open",
 	"launch-diagnostic-get", "launch-diagnostic-export",
-	"settings-save", "settings-restore-defaults", "northstar-client-status", "northstar-client-install",
+	"settings-save", "settings-restore-defaults", "northstar-client-status", "northstar-client-install", "vanilla-client-status", "vanilla-client-install",
 	"server-list-get",
 	"set-mod-state",
 	"window-move-begin", "window-move-update", "window-move-end", "window-toggle-maximize",

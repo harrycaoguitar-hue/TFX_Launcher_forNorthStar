@@ -4,7 +4,7 @@
   'use strict';
   const stageCodes=['preflight','client','skins','ea','spawn','game','northstar','confirmation'];
   const statusCodes=['pending','active','observed','failed','unconfirmed'];
-  const outcomeCodes=['launching','confirmed','preflight-failed','client-failed','skins-failed','ea-failed','spawn-failed','game-closed','northstar-not-ready','timeout','unknown'];
+  const outcomeCodes=['launching','confirmed','preflight-failed','client-failed','skins-failed','ea-failed','spawn-failed','game-closed','northstar-not-ready','official-mod-not-ready','timeout','unknown'];
   const actionCodes=['retry','settings','client','platform','mods','issue'];
   const t=key=>I18n.t('diagnostic.'+key);
   let latest=null,dialogReport=null,preview=null,dialog,returnFocus=null,request=0,saving=false,feedbackKey='';
@@ -15,9 +15,11 @@
     if(!report||typeof report.id!=='string'||!['starting','confirmed','failed'].includes(report.state))return null;
     const stages=(Array.isArray(report.stages)?report.stages:[]).filter(item=>item&&stageCodes.includes(item.code)&&statusCodes.includes(item.status));
     const outcome=outcomeCodes.includes(report.outcome?.code)?report.outcome.code:'unknown';
-    return {...report,stages,outcome:{...report.outcome,code:outcome,actions:(Array.isArray(report.outcome?.actions)?report.outcome.actions:[]).filter(code=>actionCodes.includes(code))}};
+    return {...report,officialMods:report.gameVersion==='vanilla'&&report.officialMods===true,stages,outcome:{...report.outcome,code:outcome,actions:(Array.isArray(report.outcome?.actions)?report.outcome.actions:[]).filter(code=>actionCodes.includes(code))}};
   }
-  function stageLabel(stage){return stage?t('stage.'+stage.code):'—';}
+  function stageLabel(stage,report=latest){return stage?t(report?.officialMods&&['client','northstar'].includes(stage.code)?'official.stage.'+stage.code:'stage.'+stage.code):'—';}
+  function outcomeLabel(report){return t(report.outcome.evidenceCode==='CLEAN_PROXY_RECOVERY'?'outcome.clean-recovery-failed':report.officialMods&&['client-failed','northstar-not-ready'].includes(report.outcome.code)?'official.outcome.'+report.outcome.code:'outcome.'+report.outcome.code);}
+  function actionLabel(action,report){return t(report.officialMods&&action==='client'?'official.action.client':'action.'+action);}
   function progress(report){
     const active=report.stages.find(stage=>stage.status==='active');
     const observed=report.stages.filter(stage=>stage.status==='observed').at(-1);
@@ -28,7 +30,7 @@
       card.root.hidden=!latest;card.root.dataset.state=latest?.state||'idle';
       if(!latest)continue;
       card.eyebrow.textContent=t(latest.state==='starting'?'progress':'last');
-      card.title.textContent=t('outcome.'+latest.outcome.code);
+      card.title.textContent=outcomeLabel(latest);
       const current=progress(latest);
       card.detail.textContent=t(current.label)+' · '+stageLabel(current.stage);
       card.open.textContent=t('open');
@@ -94,14 +96,14 @@
     d.save.textContent=t(saving?'saving':'export');d.save.disabled=saving||!preview;
     d.feedback.textContent=feedbackKey?t(feedbackKey):'';
     if(!report)return;
-    d.outcome.textContent=t('outcome.'+report.outcome.code);d.uncertainty.textContent=t('uncertain');
+    d.outcome.textContent=outcomeLabel(report);d.uncertainty.textContent=t('uncertain');
     for(const stage of report.stages){
       const item=node('li');item.dataset.status=stage.status;
-      const label=node('span','',stageLabel(stage));
+      const label=node('span','',stageLabel(stage,report));
       const result=node('strong','',t('status.'+stage.status));
       item.append(label,result);d.evidence.append(item);
     }
-    for(const action of report.outcome.actions)d.actions.append(node('li','',t('action.'+action)));
+    for(const action of report.outcome.actions)d.actions.append(node('li','',actionLabel(action,report)));
   }
   async function open(){
     const d=ensureDialog();if(saving)return;

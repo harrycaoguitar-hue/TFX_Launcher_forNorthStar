@@ -15,6 +15,8 @@ function normalize(value, defaultLocale = "en-US") {
     uiLanguage: normalizeLocale(data.uiLanguage || data.lang || data.forcedlang, defaultLocale),
     modSort: sorts.has(data.modSort) ? data.modSort : "added",
     northstarRegion: data.northstarRegion === "global" ? "global" : "cn",
+    modProfileServer: ["official", "cn", "global"].includes(data.modProfileServer) ? data.modProfileServer : data.northstarRegion === "global" ? "global" : "cn",
+    vanillaModsEnabled: data.vanillaModsEnabled === true,
     independentServerMods: data.independentServerMods === true,
     exitAfterLaunch: data.exitAfterLaunch === true,
     originkill: data.originkill === true,

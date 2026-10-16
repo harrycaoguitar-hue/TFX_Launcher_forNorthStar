@@ -15,7 +15,8 @@
   };
   let currentView = 'home';
   let skinFormat = 'dds';
-  let selectedMode = 'northstar';
+  let selectedMode = settings.modProfileServer === 'official' ? 'vanilla' : 'northstar';
+  let changingMode = false;
   let visiblePage = null;
   let pendingPage = null;
   let returnFocus = null;
@@ -108,9 +109,25 @@
       window.dispatchEvent(new CustomEvent('vyra-view-change',{detail:{view,mode:requestedMode}}));
     });
   }
-  function setMode(mode) {
-    if (!['northstar','vanilla'].includes(mode)) return;
+  async function setMode(mode) {
+    if (!['northstar','vanilla'].includes(mode) || changingMode || launchPending || is_running || window.VyraClient?.busy || window.OfficialClient?.busy) return;
     if (!Settings.canLeave(() => setMode(mode))) return;
+    const server = mode === 'vanilla' ? 'official' : settings.northstarRegion === 'global' ? 'global' : 'cn';
+    if (settings.modProfileServer !== server) {
+      changingMode = true;
+      for (const button of document.querySelectorAll('[data-mode]')) button.disabled = true;
+      try {
+        const result = await Settings.savePatch({modProfileServer:server});
+        if (!result?.ok || result.settings?.modProfileServer !== server) {
+          const reason = Settings.modStateError(result?.code,'official.saveFailed');
+          new Toast({key:'launch-mode-change',scheme:'error',title:I18n.t('official.saveFailed'),description:I18n.t(reason),timeout:7000});
+          return;
+        }
+      } finally {
+        changingMode = false;
+        for (const button of document.querySelectorAll('[data-mode]')) button.disabled = launchPending || is_running || window.VyraClient?.busy || window.OfficialClient?.busy;
+      }
+    }
     selectedMode = mode;
     for (const button of document.querySelectorAll('[data-mode]')) {
       button.classList.toggle('selected',button.dataset.mode === mode);
@@ -118,6 +135,23 @@
     }
     navigate('home');
   }
+  function synchronizeMode() {
+    const mode = settings.modProfileServer === 'official' ? 'vanilla' : 'northstar';
+    selectedMode = mode;
+    for (const button of document.querySelectorAll('[data-mode]')) {
+      button.classList.toggle('selected',button.dataset.mode === mode);
+      button.setAttribute('aria-pressed',String(button.dataset.mode === mode));
+    }
+    // A settings transaction can commit the mode before its controls unlock.
+    // Keep the preferences open and reconcile the home when they are closed,
+    // including a second sync whose selected mode is already up to date.
+    if (currentView === 'home' && !Settings.saving && !$('options').classList.contains('shown')) navigate('home');
+  }
+  window.addEventListener('tfx-settings-persisted',synchronizeMode);
+  window.addEventListener('vyra-settings-restored',synchronizeMode);
+  ipcRenderer.on('changed-settings',(_event,value) => {
+    if (value && Object.prototype.hasOwnProperty.call(value,'modProfileServer')) synchronizeMode();
+  });
   // Original loss-of-directory handling routes into an actionable home, retaining
   // the original picker flow without exposing the removed launcher-update page.
   window.page = index => setMode(index === 2 ? 'vanilla' : 'northstar');
@@ -343,7 +377,7 @@
     if (!document.hidden) { updateClock();clockTimer=setInterval(updateClock,30000); }
   }
   document.addEventListener('visibilitychange',syncClockTimer);
-  showPath(settings.gamepath); syncClockTimer(); setMode('northstar');
+  showPath(settings.gamepath); syncClockTimer(); setMode(selectedMode);
   ipcRenderer.on('newpath',(_event,value) => { showPath(value); refreshVisibleDds(); });
   ipcRenderer.on('changed-settings',(_event,value) => { if (value && 'gamepath' in value) { showPath(value.gamepath); refreshVisibleDds(); } });
   ipcRenderer.on('gamepath-lost',() => { showPath(settings.gamepath,true); refreshVisibleDds(); });
@@ -363,6 +397,7 @@
   for (const id of ['serverstatus','ddsStatus','ddsProgressLabel']) $(id).setAttribute('aria-live','polite');
   events.on('popup-changed',({popup,new_state:shown}) => {
     popup.setAttribute('aria-hidden',String(!shown));
+    if (popup.id === 'options' && !shown) queueMicrotask(synchronizeMode);
     const sequence = ++popupFocusSequence;
     if (shown) {
       if (!returnFocus && !document.activeElement.closest('.popup')) returnFocus = document.activeElement;

@@ -80,6 +80,22 @@ test('mismatched preview cannot be exported and unknown outcomes never claim a k
   const dialog=f.doc.getElementById('launchDiagnosticDialog');assert.equal(f.doc.getElementById('launchDiagnosticExport').disabled,true);assert.match(dialog.textContent,/diagnostic.loadError/);
   f.events.get('launch-diagnostic')({},value);assert.equal(f.win.LaunchDiagnostics.report.outcome.code,'unknown');assert.equal(f.win.LaunchDiagnostics.report.outcome.actions.length,1);
 });
+test('official Mod diagnostics label Vanilla+ checks and keep the open official snapshot when a Northstar launch arrives',async()=>{
+  const f=fixture();f.load('launch-diagnostics-ui.js');await flush();
+  const value={...report('official-launch'),gameVersion:'vanilla',officialMods:true,stages:[{code:'client',status:'observed'},{code:'northstar',status:'failed'}],outcome:{code:'official-mod-not-ready',causeKnown:false,actions:['client','mods']}};
+  f.ipc.invoke=async()=>({ok:true,report:value,preview:preview(value)});
+  await f.win.LaunchDiagnostics.open();
+  const dialog=f.doc.getElementById('launchDiagnosticDialog');
+  assert.match(dialog.querySelector('.launch-diagnostic-evidence').textContent,/diagnostic\.official\.stage\.client/);
+  assert.match(dialog.querySelector('.launch-diagnostic-evidence').textContent,/diagnostic\.official\.stage\.northstar/);
+  assert.match(dialog.querySelector('.launch-diagnostic-actions').textContent,/diagnostic\.official\.action\.client/);
+  assert.match(dialog.querySelector('.launch-diagnostic-outcome').textContent,/diagnostic\.outcome\.official-mod-not-ready/);
+  f.events.get('launch-diagnostic')({}, {...report('northstar-launch'),gameVersion:'northstar',officialMods:true});
+  assert.equal(f.win.LaunchDiagnostics.report.officialMods,false);
+  f.windowEvents.get('vyra-language-changed')();
+  assert.match(dialog.querySelector('.launch-diagnostic-evidence').textContent,/diagnostic\.official\.stage\.northstar/);
+  assert.doesNotMatch(dialog.querySelector('.launch-diagnostic-json').textContent,/northstar-launch/);
+});
 test('all new product messages have all five UI languages and Northstar uncertainty does not assert an observed game process',()=>{
   const f=fixture();f.load('feature-copy.js');
   const pairs=f.win.VyraLocales.messages;assert.ok(Object.keys(pairs).length>=73);

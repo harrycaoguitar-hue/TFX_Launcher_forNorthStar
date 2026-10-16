@@ -9,7 +9,7 @@
   function render() {
     const pending = latest?.state === 'starting';
     launchPending = pending;
-    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region]')) {
+    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-vanilla-mods],[data-mode]')) {
       if (pending) {
         if (!regionLocks.has(button)) regionLocks.set(button, button.disabled);
         button.disabled = true;
@@ -28,9 +28,11 @@
     for (const status of document.querySelectorAll('.fold-launch-status')) {
       status.hidden = !latest || latest.state === 'confirmed';
       status.classList.toggle('failed', latest?.state === 'failed');
-      status.textContent = pending ? (phaseKeys[latest?.phase] ? I18n.t(phaseKeys[latest.phase]) : clientPreparation ? I18n.text(clientPreparation) : text('正在等待游戏进程…','Waiting for the game process…')) : latest?.state === 'failed' ? I18n.text(latest.error || text('启动失败，请重试。','Launch failed. Try again.')) : '';
+      status.textContent = pending ? (phaseKeys[latest?.phase] ? I18n.t(phaseKeys[latest.phase]) : clientPreparation ? I18n.text(clientPreparation) : text('正在等待游戏进程…','Waiting for the game process…')) : latest?.state === 'failed' ? window.OfficialErrors?.has(latest) ? window.OfficialErrors.text(latest) : I18n.text(latest.error || text('启动失败，请重试。','Launch failed. Try again.')) : '';
+      status.title = latest?.state === 'failed' && latest.error ? I18n.text(latest.error) : '';
     }
     window.VyraClient?.renderAction();
+    window.OfficialClient?.renderAction();
   }
   function receive(result) {
     if (!result || !['starting','confirmed','failed'].includes(result.state)) return;

@@ -3,7 +3,7 @@ const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const {app,ipcMain} = require("electron");
 const settings = require("./settings"), network = require("./northstar-region");
 const {splitArguments,hasGame} = require("./launch-session");
-const {createClientSwitcher,validateManifest} = require("./northstar-client");
+const {createClientSwitcher,validateManifest,validateBundle} = require("./northstar-client");
 const {ClientBundleCache} = require("./northstar-client-cache");
 const win = require("../win");
 const gate = require("./dds-operation-gate");
@@ -27,6 +27,42 @@ async function metadata(filename) {
   const stat=await fs.promises.lstat(filename);
   if(!stat.isFile()||stat.isSymbolicLink()||stat.size>8*1024*1024)throw Error("北极星客户端清单体积无效");
   return JSON.parse(await fs.promises.readFile(filename,"utf8"));
+}
+async function trustedProxyFingerprints(gameRoot, fingerprint) {
+  const selection=context({...settings(),gamepath:gameRoot}), ctx=await engine().context(selection.gameRoot,selection.profile), result=[];
+  const proxy="bin/x64_retail/wsock32.dll";
+  const matches=manifest=>manifest.files.some(file=>file.path.toLowerCase()===proxy&&(!fingerprint||file.size===fingerprint.size&&file.sha256===fingerprint.sha256));
+  const add=async(directory,channel,expectedDigest)=>{
+    const bundle=await validateBundle(directory,channel);
+    if(expectedDigest&&bundle.digest!==expectedDigest)throw Error("北极星更新缓存清单与索引不一致");
+    const file=bundle.files.get(proxy);result.push({size:file.size,sha256:file.sha256});
+  };
+  for(const channel of ["cn","global"]){
+    // This path is a previously recognized installation, never the current
+    // game DLL. Validate every payload before allowing its proxy to move.
+    const snapshot=path.join(ctx.state,"channel-cache",channel), snapshotManifest=path.join(snapshot,"manifest.json");
+    require("./mod-enabled-state").checked(snapshotManifest);
+    if(fs.existsSync(snapshotManifest)){
+      const manifest=validateManifest(await metadata(snapshotManifest),channel), provenance=manifest.provenance;
+      if(matches(manifest)){
+        if(provenance?.kind!=="private-installed-snapshot"||typeof provenance.gameRoot!=="string"||path.resolve(provenance.gameRoot).toLowerCase()!==ctx.root.toLowerCase()||typeof provenance.profile!=="string"||provenance.profile.toLowerCase()!==ctx.profile.toLowerCase())throw Error("北极星本地客户端快照来源无效");
+        await add(snapshot,channel,crypto.createHash("sha256").update(JSON.stringify(manifest)).digest("hex"));if(fingerprint)return result;
+      }
+    }
+    const pointer=path.join(cache.cacheRoot,"updates",channel+".json");await cache.safeCachePath(pointer);
+    if(!fs.existsSync(pointer))continue;
+    const ref=await metadata(pointer);
+    if(ref.channel!==channel||!/^[a-f0-9]{64}$/.test(ref.directory))throw Error("北极星更新缓存索引无效");
+    const directory=path.join(cache.cacheRoot,"updates",ref.directory);await cache.safeCachePath(path.join(directory,"manifest.json"));
+    const manifest=validateManifest(await metadata(path.join(directory,"manifest.json")),channel);
+    if(crypto.createHash("sha256").update(JSON.stringify(manifest)).digest("hex")!==ref.directory)throw Error("北极星更新缓存清单与索引不一致");
+    if(!matches(manifest))continue;
+    const source=manifest.source,repository=channel==="global"?"R2Northstar/Northstar":"R2NorthstarCN/R2NorthstarCN_Launcher";
+    const validURL=source&&[manifest.version,manifest.version.startsWith("v")?manifest.version.slice(1):"v"+manifest.version].some(tag=>require("./releases").isClientAssetURL(source.url,tag,undefined,channel));
+    if(source?.repository!==repository||!/^[a-f0-9]{64}$/.test(source.archiveSha256)||!validURL)throw Error("北极星更新缓存来源无效");
+    await add(directory,channel,ref.directory);if(fingerprint)return result;
+  }
+  return result;
 }
 async function targetVersion(region,info,conf) {
   let manifest=validateManifest(await metadata(path.join(cache.sourceRoot,region,"manifest.json")),region);
@@ -69,7 +105,7 @@ async function status(region, configuration) {
     return {ok:false,region,version,installed:false,active:false,installState:"not-installed",state:"missing",selectedVersion:null,installedRegion:null,installedVersion:"unknown",ready:false,pending:false,error:error.message};
   }
 }
-async function ensure({conf=settings(),directory,repair=false,allowInstall=false,refresh=false,guard}={}) {
+async function ensure({conf=settings(),directory,repair=false,allowInstall=false,refresh=false,guard,onProgress}={}) {
   conf=Object.freeze({...conf});
   let selectionGuard=guard;
   const guardSelection=async()=>{
@@ -82,12 +118,17 @@ async function ensure({conf=settings(),directory,repair=false,allowInstall=false
     }
   };
   const region=network.normalize(conf.northstarRegion);
+  const progress = payload => {
+    const value={...payload,region:payload.channel||region,phase:payload.phase==="recovering"?"checking":payload.phase};
+    send("northstar-client-progress",value);
+    try {onProgress?.(value);} catch (_) { /* A display callback must not abort a file transaction. */ }
+  };
   activeRegion=region;
   try {
-    send("northstar-client-progress",{region,phase:"checking",percent:0});
+    progress({region,phase:"checking",percent:0});
     await guardSelection();
     const args={...context(conf),channel:region,repair:repair===true,allowInstall:allowInstall===true,refresh:refresh===true,refreshClient:Boolean(directory)};
-    const switcher=directory||guard?createClientSwitcher({bundleRoot:cache.sourceRoot,stateRoot:path.join(dataRoot,"transactions"),bundleProvider:async channel=>directory&&channel===region?{directory,preferSnapshot:false}:cache.descriptor(channel),processCheck:async()=>{await guardSelection();const snapshot=await require("./is_running").snapshot();await guardSelection();return snapshot;},progress:payload=>send("northstar-client-progress",{...payload,region:payload.channel||region,phase:payload.phase==="recovering"?"checking":payload.phase})}):engine();
+    const switcher=directory||guard||onProgress?createClientSwitcher({bundleRoot:cache.sourceRoot,stateRoot:path.join(dataRoot,"transactions"),bundleProvider:async channel=>directory&&channel===region?{directory,preferSnapshot:false}:cache.descriptor(channel),processCheck:async()=>{await guardSelection();const snapshot=await require("./is_running").snapshot();await guardSelection();return snapshot;},progress}):engine();
     const result=await switcher.ensure(args);await switcher.assertReady(args);
     ipcMain.emit("get-version");ipcMain.emit("gui-getmods");return result;
   } catch(error) {
@@ -129,4 +170,4 @@ async function install(options={}) {
 }
 ipcMain.handle("northstar-client-status",(_event,options={})=>status(options.region));
 ipcMain.handle("northstar-client-install",(_event,options={})=>install(options));
-module.exports={status,ensure,assertReady,recover,install,cache,context};
+module.exports={status,ensure,assertReady,recover,install,cache,context,trustedProxyFingerprints};

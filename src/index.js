@@ -156,6 +156,7 @@ function start() {
 	require("./modules/gamepath");
 	require("./modules/system_dns");
 	require("./modules/launch");
+	require("./modules/vanilla-client");
 	const dds = require("./modules/dds"), vtf = require("./modules/vtf");
 	require("./modules/skin-import").register({...require("electron"),dds,vtf,mods:require("./modules/mods")});
 	require("./modules/weapon-library").register({...require("electron"),dds,vtf,mods:require("./modules/mods"),settings:require("./modules/settings")});

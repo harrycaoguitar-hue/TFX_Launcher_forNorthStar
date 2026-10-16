@@ -285,6 +285,38 @@ test("independent toggle snapshots the confirmed choice and a snapshot failure r
   finally {state.write = originalWrite;}
 });
 
+test("official Mod selection protects VanillaPlus and disables incompatible Northstar core operations", async () => {
+  const f = fixture(), profiles = require("../src/modules/server-mod-profiles");
+  for (const name of state.CORE_NAMES) f.put(name); f.put("VanillaPlus", "2.5.1", "NP.VanillaPlus", "NachosChipeados-VanillaPlus-2.5.1"); f.put("Personal");
+  Object.assign(f.saved, {modProfileServer: "official", independentServerMods: true}); profiles.transition(f.saved, f.saved);
+  const before = hashTree(f.gamePath), vanilla = f.mods.list({readOnly: true}).all.find(item => item.name === "VanillaPlus");
+  assert.equal(vanilla.required, true); assert.equal(vanilla.disabled, false);
+  assert.equal(f.mods.setState({names: ["VanillaPlus"], enabled: false}).code, "CORE_REQUIRED");
+  assert.equal(f.mods.setState({names: ["Northstar.Client"], enabled: true}).code, "CORE_REQUIRED");
+  assert.equal(f.mods.remove("VanillaPlus").code, "CORE_REQUIRED"); assert.equal(hashTree(f.gamePath), before);
+  assert.equal(f.mods.modfile.gen().ok, true); profiles.assertOfficialReady(f.profile);
+  profiles.transition(f.saved, {...f.saved, modProfileServer: "cn"}); f.saved.modProfileServer = "cn";
+  assert.equal(f.mods.setState({names: ["VanillaPlus"], enabled: true}).code, "CORE_REQUIRED");
+  for (const name of state.CORE_NAMES) assert.equal(f.mods.list({readOnly: true}).all.find(item => item.name === name).disabled, false);
+});
+test("official server selection during asynchronous Mod guard cancels the old server mutation", async () => {
+  const f = fixture(); f.put("Example"); f.saved.modProfileServer = "cn";
+  let release; f.setSnapshot(() => new Promise(resolve => {release = resolve;})); const before = hashTree(f.gamePath);
+  const pending = f.mods.setStateAsync({names: ["Example"], enabled: false});
+  f.saved.modProfileServer = "official"; release({ok: true, processes: []});
+  assert.equal((await pending).ok, false); assert.equal(hashTree(f.gamePath), before);
+});
+test("older and duplicate VanillaPlus packages remain removable so the dedicated installer can recover", () => {
+  const f = fixture(); f.saved.modProfileServer = "official";
+  f.put("VanillaPlus", "2.4.1", "NP.VanillaPlus", "NachosChipeados-VanillaPlus-2.4.1");
+  f.put("VanillaPlus", "2.5.1", "NP.VanillaPlus", "NachosChipeados-VanillaPlus-2.5.1");
+  const rows = f.mods.list({readOnly: true}).all.filter(item => item.name === "VanillaPlus");
+  assert.equal(rows.find(item => item.stateVersion === "2.4.1").required, false); assert.equal(rows.find(item => item.stateVersion === "2.5.1").required, true);
+  const duplicate = rows.find(item => item.stateVersion === "2.4.1"); assert.equal(f.mods.remove({name: "VanillaPlus", folder_name: duplicate.folder_name, package: duplicate.package}), true);
+  assert.equal(fs.existsSync(path.join(f.profile, "packages/NachosChipeados-VanillaPlus-2.4.1")), false);
+  assert.equal(fs.existsSync(path.join(f.profile, "packages/NachosChipeados-VanillaPlus-2.5.1/mods/NP.VanillaPlus/mod.json")), true);
+});
+
 test.after(() => {
   assert.equal(path.dirname(fixtureRoot), path.resolve(os.tmpdir()));
   assert(path.basename(fixtureRoot).startsWith("tfx-mods-library-"));

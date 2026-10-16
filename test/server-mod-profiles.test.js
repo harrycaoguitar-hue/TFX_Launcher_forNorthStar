@@ -148,4 +148,72 @@ test("acknowledged settings IPC blocks running/busy switches and atomically roll
   f.fail(false); assert.equal((await save({northstarRegion: "global"})).ok, true); assert.equal(f.settings().northstarRegion, "global");
   assert.equal((await f.handles.get("settings-restore-defaults")({})).settings.independentServerMods, false); assert.equal(f.settings().northstarRegion, "cn"); assert.equal(f.events.some(event => event[0] === "gui-getmods"), true);
 });
+test("three server snapshots independently retain personal choices while the correct runtime core stays fixed", async () => {
+  const f = fixture(); f.put("VanillaPlus", "2.5.1", "NP.VanillaPlus");
+  f.select({independentServerMods: true, modProfileServer: "cn"});
+  assert.equal(f.meta().schemaVersion, 2); assert.equal(f.meta().official["Example.On"], true);
+  assert.equal(state.enabled(f.document(), "VanillaPlus", "2.5.1"), false);
+  f.set("Example.On", false); f.select({northstarRegion: "global", modProfileServer: "global"}); f.set("Example.Off", true);
+  f.select({modProfileServer: "official"}); f.set("Example.Off", true); f.set("Example.On", false);
+  await profiles.prepareOfficial(f.profile, {independent: true});
+  assert.equal(f.document().format, "versioned"); assert.equal(f.on("Example.On"), false); assert.equal(f.on("Example.Off"), true);
+  assert.equal(state.enabled(f.document(), "VanillaPlus", "2.5.1"), true);
+  for (const name of state.CORE_NAMES) assert.equal(f.on(name), false);
+  assert.equal(profiles.assertOfficialReady(f.profile).server, "official");
+  f.select({northstarRegion: "cn", modProfileServer: "cn"});
+  assert.equal(f.on("Example.On"), false); assert.equal(f.on("Example.Off"), false);
+  assert.equal(state.enabled(f.document(), "VanillaPlus", "2.5.1"), false); for (const name of state.CORE_NAMES) assert.equal(f.on(name), true);
+  f.select({northstarRegion: "global", modProfileServer: "global"});
+  assert.equal(f.on("Example.On"), true); assert.equal(f.on("Example.Off"), true);
+  f.select({modProfileServer: "official"}); assert.equal(f.on("Example.On"), false); assert.equal(f.on("Example.Off"), true);
+});
+test("legacy two server metadata upgrades without changing either existing personal snapshot", () => {
+  const f = fixture(); f.select({independentServerMods: true}); f.set("Example.On", false); f.select({northstarRegion: "global"}); f.set("Example.Off", true);
+  const previous = f.meta(); delete previous.official; previous.schemaVersion = 1;
+  fs.writeFileSync(profiles.filename(f.profile), JSON.stringify(previous));
+  f.select({modProfileServer: "official"});
+  assert.equal(f.meta().schemaVersion, 2); assert.deepEqual(f.meta().cn, previous.cn); assert.deepEqual(f.meta().global, previous.global);
+  assert.equal(f.meta().official["Example.Off"], true); assert.equal(f.meta().activeRegion, "official");
+});
+test("shared official/community launch keeps personal switches shared and never creates isolation metadata or edits skins", async () => {
+  const f = fixture(); f.put("VanillaPlus", "2.5.1", "NP.VanillaPlus");
+  const files = [path.join(f.gamepath, "skin.dds"), path.join(f.gamepath, "skin.vtf"), path.join(f.gamepath, "skin.vpk"), path.join(f.profile, "mods/NP.VanillaPlus/mod.json")];
+  for (const file of files.slice(0, 3)) fs.writeFileSync(file, "fixture skin bytes"); const original = files.map(file => fs.readFileSync(file));
+  const backupRoot = path.join(f.dir, "states");
+  await profiles.prepareOfficial(f.profile, {backupRoot}); assert.equal(f.on("Example.On"), true); assert.equal(f.on("Example.Off"), false);
+  assert.equal(state.enabled(f.document(), "VanillaPlus", "2.5.1"), true); for (const name of state.CORE_NAMES) assert.equal(f.on(name), false);
+  f.set("Example.On", false);
+  await profiles.prepareShared(f.profile, "cn", {backupRoot}); assert.equal(f.on("Example.On"), false); assert.equal(f.on("Example.Off"), false);
+  assert.equal(state.enabled(f.document(), "VanillaPlus", "2.5.1"), false); for (const name of state.CORE_NAMES) assert.equal(f.on(name), true);
+  await profiles.prepareShared(f.profile, "global", {backupRoot}); assert.equal(f.on("Example.On"), false); assert.equal(f.document().format, "versioned");
+  await profiles.prepareOfficial(f.profile, {backupRoot}); assert.equal(f.on("Example.On"), false); assert.equal(profiles.read(f.profile).value, null);
+  files.forEach((file, index) => assert.deepEqual(fs.readFileSync(file), original[index]));
+});
+test("a newly imported Mod remains confined to its active official server and all three snapshots roll back on failed commit", () => {
+  const f = fixture(); f.select({independentServerMods: true, modProfileServer: "official"}); f.put("Official.New");
+  f.select({modProfileServer: "cn"}); assert.equal(f.on("Official.New"), false);
+  f.select({modProfileServer: "global"}); assert.equal(f.on("Official.New"), false);
+  const live = f.snapshot(), metadata = fs.readFileSync(profiles.filename(f.profile));
+  assert.throws(() => f.select({modProfileServer: "official"}, () => {throw Error("disk full");}), /disk full/);
+  assert.deepEqual(f.snapshot(), live); assert.deepEqual(fs.readFileSync(profiles.filename(f.profile)), metadata); assert.equal(f.conf.modProfileServer, "global");
+  f.select({modProfileServer: "official"}); assert.equal(f.on("Official.New"), true);
+});
+test("official preparation rejects missing/duplicate VanillaPlus or interrupted guards before compatibility writes", async () => {
+  const f = fixture(), before = f.snapshot(); await assert.rejects(profiles.prepareOfficial(f.profile, {backupRoot: path.join(f.dir, "states")}), /missing/); assert.deepEqual(f.snapshot(), before);
+  f.put("VanillaPlus", "2.5.1", "NP.VanillaPlus"); f.put("VanillaPlus", "2.5.1", "Duplicate.VanillaPlus");
+  await assert.rejects(profiles.prepareOfficial(f.profile, {independent: true}), /Duplicate/); assert.deepEqual(f.snapshot(), before);
+  const g = fixture(); g.put("VanillaPlus", "2.5.1", "NP.VanillaPlus"); const old = g.snapshot();
+  await assert.rejects(profiles.prepareOfficial(g.profile, {independent: true, guard: async () => {throw Error("selection changed");}}), /selection changed/);
+  assert.deepEqual(g.snapshot(), old); assert.equal(profiles.read(g.profile).value, null);
+});
+test("official selection preference commits through the same guarded settings transaction and defaults stay backward compatible", async () => {
+  const f = settingsFixture(), save = patch => f.handles.get("settings-save")({}, patch);
+  assert.equal(f.settings().modProfileServer, "cn"); assert.equal(f.settings().vanillaModsEnabled, false);
+  assert.equal((await save({independentServerMods: true})).ok, true);
+  assert.equal((await save({modProfileServer: "official", vanillaModsEnabled: true})).ok, true); assert.equal(f.meta().activeRegion, "official");
+  f.processes({ok: true, processes: [{image: "titanfall2.exe", pid: 123}]});
+  assert.equal((await save({modProfileServer: "global"})).code, "GAME_RUNNING"); assert.equal((await save({vanillaModsEnabled: false})).code, "GAME_RUNNING");
+  f.processes({ok: true, processes: []}); assert.equal((await save({northstarRegion: "global"})).ok, true); assert.equal(f.settings().modProfileServer, "global");
+  const preferences = require("../src/preferences"); assert.equal(preferences.normalize({northstarRegion: "global"}).modProfileServer, "global"); assert.equal(preferences.normalize({modProfileServer: "invalid", vanillaModsEnabled: "true"}).vanillaModsEnabled, false);
+});
 test.after(() => {assert.equal(path.dirname(root), path.resolve(os.tmpdir())); assert(path.basename(root).startsWith("tfx-server-mods-")); fs.rmSync(root, {recursive: true, force: true});});

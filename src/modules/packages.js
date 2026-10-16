@@ -23,7 +23,7 @@ function selection() {
 	const launcher = path.join(conf.gamepath, "NorthstarLauncher.exe");
 	let launcherStat; try {launcherStat = fs.lstatSync(launcher);} catch (_) {}
 	if (!launcherStat?.isFile() || launcherStat.isSymbolicLink()) throw Object.assign(new Error("Install the selected Northstar client from the Play page before installing mods."), {code: "CLIENT_MISSING"});
-	return {gamePath: path.resolve(conf.gamepath), profileDirectory: region.resolveProfile(conf.gamepath, splitArguments(conf.nsargs || "")), region: region.normalize(conf.northstarRegion), independentServerMods: conf.independentServerMods === true};
+	return {gamePath: path.resolve(conf.gamepath), profileDirectory: region.resolveProfile(conf.gamepath, splitArguments(conf.nsargs || "")), region: require("./server-mod-profiles").selectedServer(conf), independentServerMods: conf.independentServerMods === true};
 }
 function profilePath() {
 	try {return selection().profileDirectory;} catch (_) {return path.resolve(settings().gamepath || ".", "R2Northstar");}

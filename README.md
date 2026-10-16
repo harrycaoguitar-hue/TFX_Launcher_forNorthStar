@@ -6,7 +6,9 @@
 
 TFX brings **Northstar Global** and **NorthstarCN China** to one TITANFALL 2 installation. Choose a network, launch the matching client, and keep your community play in one place. A unified installer recognizes DDS skins, VTF skins and Northstar Mods automatically; the Arsenal organizes skins by weapon and lets you return directly to a valid historical skin or the original.
 
-[Download TFX 1.0.3](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest) · [Report a problem](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
+[Download TFX 1.0.3](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.3) · [Report a problem](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
+
+The latest stable release is **1.0.3**. The **[1.0.4-beta.2 prerelease](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.4-beta.2)** adds official-server Mods and three-server Mod states, described [below](#preview-official-server-mods-and-three-server-states). The gallery remains the released 1.0.3 interface.
 
 ![TFX Northstar launch screen](docs/images/play.webp)
 
@@ -57,6 +59,20 @@ After both clients are prepared, switching uses the corresponding prepared core 
 
 **Vanilla** remains available for the campaign and official multiplayer, through the normal Steam / EA launch environment.
 
+### Preview: official-server Mods and three-server states
+
+**Available in the 1.0.4-beta.2 prerelease.** On the **Vanilla** launch screen, choose **Without Mods** or **With Mods**, using the same selector style as Northstar's CN / Global choice. **Without Mods** uses the normal Steam / EA game launch. **With Mods** loads compatible client-side Mods while retaining official multiplayer; it does not connect to a Northstar community network.
+
+Before the first **With Mods** launch, use the page's installation action to prepare **VanillaPlus 2.5.1** and a compatible **Northstar Global runtime, version 1.29.0 or newer**. A missing, damaged or outdated component is shown as needing installation or repair. Checking its status does not start a download or the game. The installer validates the bundled VanillaPlus files, prepares the global runtime and reports progress; installation and repair require the game to be closed. TFX selects the necessary core components for each launch mode, so switching back to Northstar restores its community menus.
+
+Official Mod mode keeps the purchased game's Steam / EA launch identity. A strictly matched Steam installation is dispatched through Steam with the same controlled game arguments; other installations use `Titanfall2.exe`. TFX still waits for a new game process and evidence that VanillaPlus reached the main menu. A Steam / EA confirmation, if required by the platform, must be completed there.
+
+VanillaPlus supports **compatible client-side Mods**, rather than every Northstar Mod. Mods that depend on a custom server, alter server-side gameplay or require Northstar-only services may fail in official multiplayer. Check each Mod's compatibility before enabling it. The framework, its authors and licenses are documented in [third-party notices](THIRD_PARTY_NOTICES.md).
+
+**Preferences → Separate Mod states for three servers** replaces the preview's two-region setting and is **off by default**. When enabled, TFX remembers Mod switches separately for **Official**, **NorthstarCN** and **Northstar Global**. The three profiles start from the current choices; newly added Mods stay enabled on the current side and start disabled on the other sides. Only **Mod enabled states** are separated. Installed package files, native plugins, DDS skins and VTF skins remain shared; this is not three copies of the game or plugin-code isolation. Leaving the option off retains shared personal Mod choices, while the required compatibility components still follow the selected launch mode.
+
+For **Without Mods**, TFX temporarily neutralizes the recognized Northstar autoload proxy and `run_northstar.txt` marker, then restores the prior files after launch handoff or a failed launch. A recovery journal covers interrupted operations and refuses to overwrite external changes. This choice controls loader-based Mods; it does not uninstall shared DDS / VTF skins. Keep externally configured Steam / EA launch options consistent with the selected mode.
+
 ## Community servers
 
 **Community Servers** has a vertical public directory for the selected network. Search by server name, map or mode, and inspect players / capacity, descriptions and required Mods. More populated servers appear first. The page uses the same scrolling area as the rest of the app.
@@ -73,7 +89,7 @@ Open **My Mods → Discover Mods** for [Thunderstore's Northstar directory](http
 
 For a local package, use **Skin installer**. A compatible archive or complete folder containing valid `mod.json` definitions is identified as a **Mod** and installed automatically. After installation, manage its switches and removal in **My Mods**. Invalid definitions, unsafe paths, damaged archives and mixed incompatible content produce explicit errors.
 
-### Separate Mod states for CN and Global
+### Separate Mod states for CN and Global — released 1.0.3
 
 Enable **Preferences → Separate Mod states by region** when the two networks need different enabled Mods. It is **off by default**.
 

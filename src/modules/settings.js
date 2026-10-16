@@ -10,7 +10,7 @@ const json = require("./json");
 const normalize = value => require("../preferences").normalize(value, lang.defaultLocale);
 const preferenceDefaults = Object.freeze({
 	theme: "aurora", uiLanguage: lang.defaultLocale || "zh-CN", modSort: "added", exitAfterLaunch: false,
-	northstarRegion: "cn", independentServerMods: false, nsupdate: true, originkill: false, nsargs: "-multiple",
+	northstarRegion: "cn", modProfileServer: "cn", vanillaModsEnabled: false, independentServerMods: false, nsupdate: true, originkill: false, nsargs: "-multiple",
 	excludes: ["ns_startup_args.txt", "ns_startup_args_dedi.txt"]
 });
 
@@ -39,6 +39,8 @@ var settings = {
 	modSort: "added",
 	exitAfterLaunch: false,
 	northstarRegion: "cn",
+	modProfileServer: "cn",
+	vanillaModsEnabled: false,
 	independentServerMods: false,
 	nsupdate: true,
 	originkill: false,
@@ -77,6 +79,7 @@ if (fs.existsSync("fold.json")) {
 	settings.modSort = normalize_mod_sort(settings.modSort);
 	settings.exitAfterLaunch = settings.exitAfterLaunch === true;
 	settings.northstarRegion = settings.northstarRegion === "global" ? "global" : "cn";
+	settings.modProfileServer = ["official", "cn", "global"].includes(conf.modProfileServer) ? conf.modProfileServer : settings.northstarRegion;
 
 	settings.zip = path.join(app.getPath("userData"), "Temp/northstar.zip");
 
@@ -133,11 +136,14 @@ let saveDirect = (obj = {}, notify_renderer = true) => {
 
 function settingsFailure(error) {return {ok: false, error: error.message || String(error), ...(error.code ? {code: error.code} : {}), settings: {...settings}};}
 function requiresTransition(previous, next) {
-	return previous.northstarRegion !== next.northstarRegion || previous.independentServerMods !== next.independentServerMods ||
+	return previous.northstarRegion !== next.northstarRegion || previous.modProfileServer !== next.modProfileServer || previous.vanillaModsEnabled !== next.vanillaModsEnabled || previous.independentServerMods !== next.independentServerMods ||
 		(previous.independentServerMods || next.independentServerMods) && (previous.gamepath !== next.gamepath || previous.nsargs !== next.nsargs);
 }
 let savingContext = false;
 async function saveAsync(obj = {}, notify_renderer = true) {
+	// Legacy callers select a Northstar region without the newer library field.
+	// Keep their selection coherent while honoring an explicit official choice.
+	if (Object.prototype.hasOwnProperty.call(obj, "northstarRegion") && !Object.prototype.hasOwnProperty.call(obj, "modProfileServer")) obj = {...obj, modProfileServer: obj.northstarRegion === "global" ? "global" : "cn"};
 	const previous = {...settings}, next = normalize({...settings, ...obj});
 	if (!requiresTransition(previous, next)) return saveDirect(obj, notify_renderer);
 	if (savingContext) throw Object.assign(Error("Another server selection is being saved. Please retry."), {code: "busy"});
@@ -149,7 +155,7 @@ async function saveAsync(obj = {}, notify_renderer = true) {
 			const stopped = await require("./is_running").snapshot();
 			if (!stopped?.ok) throw Object.assign(Error("Unable to check whether the game is running. Please retry."), {code: "PROCESS_QUERY"});
 			if (require("./launch-session").hasGame(stopped)) throw Object.assign(Error("Close Titanfall 2 before switching servers or independent Mod settings."), {code: "GAME_RUNNING"});
-			if (settings.gamepath !== previous.gamepath || settings.nsargs !== previous.nsargs || settings.northstarRegion !== previous.northstarRegion || settings.independentServerMods !== previous.independentServerMods) throw Object.assign(Error("The game profile changed. Please retry."), {code: "PROFILE_CHANGED"});
+			if (settings.gamepath !== previous.gamepath || settings.nsargs !== previous.nsargs || settings.northstarRegion !== previous.northstarRegion || settings.modProfileServer !== previous.modProfileServer || settings.vanillaModsEnabled !== previous.vanillaModsEnabled || settings.independentServerMods !== previous.independentServerMods) throw Object.assign(Error("The game profile changed. Please retry."), {code: "PROFILE_CHANGED"});
 			if (mods.sharedImportBusy || mods.isImportBusy() || packages.activeCount > 0) throw Object.assign(Error("A Mod is being installed. Please retry when it completes."), {code: "busy"});
 			const result = require("./server-mod-profiles").transition(previous, next, () => saveDirect(obj, false));
 			// Acknowledgements follow the durable commit. Refresh failures cannot
@@ -172,7 +178,7 @@ function normalize_mod_sort(value) {
 
 // sets `key` in `settings` to `value`
 let set = (key, value) => {
-	if (["northstarRegion", "independentServerMods"].includes(key) || settings.independentServerMods && ["gamepath", "nsargs"].includes(key)) throw Error("Use settings.saveAsync to change the selected server or independent Mod profile.");
+	if (["northstarRegion", "modProfileServer", "vanillaModsEnabled", "independentServerMods"].includes(key) || settings.independentServerMods && ["gamepath", "nsargs"].includes(key)) throw Error("Use settings.saveAsync to change the selected server or independent Mod profile.");
 	settings[key] = value;
 }
 

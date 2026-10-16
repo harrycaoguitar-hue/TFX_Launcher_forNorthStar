@@ -47,11 +47,14 @@ class LaunchConfirmation {
     if (this.current) throw Error("已有游戏启动请求正在等待确认");
     if (!baseline?.ok) throw Error("无法读取游戏进程，请稍后重试启动");
     if (hasGame(baseline)) throw Error("游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏");
-    const targetImages = options.gameVersion === "northstar" ? LAUNCH_IMAGES : GAME_IMAGES;
-    const session = {spawned: false, ready: false, entered: false, requireReady: options.gameVersion === "northstar", childPid: null, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, childExit: null, everSeen: false, everCandidate: false, everHandoffCandidate: false, bootstrapHandoff: false, missingAt: null, observationRevision: 0, lastSnapshotOk: true, lastSnapshot: baseline, retryHandoff: options.retryHandoff, retryPending: false, retryAttempted: false, targetImages};
+    const requireReady = options.gameVersion === "northstar" || options.requireReady === true;
+    const targetImages = requireReady ? LAUNCH_IMAGES : GAME_IMAGES;
+    const session = {spawned: false, ready: false, entered: false, requireReady, officialMods:options.officialMods===true, childPid: null, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, childExit: null, everSeen: false, everCandidate: false, everHandoffCandidate: false, bootstrapHandoff: false, missingAt: null, observationRevision: 0, lastSnapshotOk: true, lastSnapshot: baseline, retryHandoff: options.retryHandoff, retryPending: false, retryAttempted: false, targetImages};
+    session.allowBootstrapHandoff = options.allowBootstrapHandoff === true || !requireReady;
+    session.platformDispatch = options.platformDispatch === true;
     session.promise = new Promise(resolve => {session.resolve = resolve;});
     this.current = session;
-    session.timer = this.schedule(() => this.fail(session, session.requireReady && session.everSeen && !session.ready ? Object.assign(new Error("游戏进程已运行，但未能确认北极星私人服务器菜单已加载。请退出游戏并检查启动诊断后重试。"), {code:"NORTHSTAR_NOT_READY"}) : Object.assign(new Error("等待游戏启动超时。请检查 EA App / Steam 是否已登录、是否有弹窗，确认游戏未启动后再重试；详情见启动诊断。"), {code:"LAUNCH_TIMEOUT"})), this.timeoutMs);
+    session.timer = this.schedule(() => this.fail(session, session.requireReady && session.everSeen && !session.ready ? Object.assign(new Error(session.officialMods ? "游戏进程已运行，但未能确认 VanillaPlus 已加载。请退出游戏，检查官服 Mod 组件与启用的 Mod 后重试。" : "游戏进程已运行，但未能确认北极星私人服务器菜单已加载。请退出游戏并检查启动诊断后重试。"), {code:session.officialMods?"OFFICIAL_MOD_NOT_READY":"NORTHSTAR_NOT_READY"}) : Object.assign(new Error("等待游戏启动超时。请检查 EA App / Steam 是否已登录、是否有弹窗，确认游戏未启动后再重试；详情见启动诊断。"), {code:"LAUNCH_TIMEOUT"})), this.timeoutMs);
     session.timer?.unref?.();
     this.speedUp?.(this.now() + this.timeoutMs);
     return session;
@@ -75,7 +78,7 @@ class LaunchConfirmation {
     // Titanfall's vanilla bootstrap uses 100010 for the Steam/EA handoff.
     // Its own PID can appear as Titanfall2.exe before exiting; that is not
     // evidence that the separate game has appeared and then quickly closed.
-    session.bootstrapHandoff = !session.requireReady && code === 100010 && !signal;
+    session.bootstrapHandoff = !signal && (session.allowBootstrapHandoff && code === 100010 || session.platformDispatch && code === 0);
     if (session.bootstrapHandoff) {
       if (session.seenPid === session.childPid) session.seenPid = null;
       session.everCandidate = session.everHandoffCandidate;
@@ -84,7 +87,7 @@ class LaunchConfirmation {
     // Only a cold platform initialization may replay a dropped handoff. Never
     // replay a request after a real game/core menu was observed or after an
     // unrecognized crash. The original overall deadline is retained.
-    session.retryPending = Boolean(session.retryHandoff && !session.retryAttempted && !signal &&
+    session.retryPending = Boolean(!session.platformDispatch && session.retryHandoff && !session.retryAttempted && !signal &&
       !session.ready && !session.entered && !session.everCandidate && !session.everHandoffCandidate &&
       (session.bootstrapHandoff || (session.requireReady && (code === 0 || code === 100010))));
     // Zero may hand off to Steam/EA. If a game was already observed, a short
@@ -131,6 +134,10 @@ class LaunchConfirmation {
   }
   exitError(session) {
     const value = session.childExit;
+    if (session.requireReady && !session.ready) {
+      const detail = value?.signal ? "（" + value.signal + "）" : value?.code ? "（退出码 " + value.code + "）" : "";
+      return Object.assign(Error("游戏在主菜单加载完成前退出" + detail + "。若不是手动关闭，请先排查最近启用的 Mod 或皮肤，再检查 EA App / Steam 登录提示与启动诊断。"), {code:session.everCandidate || session.entered ? "LAUNCH_EARLY_EXIT" : "LAUNCHER_EARLY_EXIT"});
+    }
     if ((session.everCandidate || session.ready || session.entered) && (!value?.code || session.bootstrapHandoff) && !value?.signal) return Object.assign(Error("游戏在启动确认完成前已退出。现在可以重新启动；若不是手动关闭，请检查 EA App / Steam 提示与启动诊断。"), {code:"LAUNCH_EARLY_EXIT"});
     return Object.assign(Error("游戏启动进程提前退出" + (value?.signal ? "（" + value.signal + "）" : "（退出码 " + value?.code + "）") + "。请检查 EA App / Steam 的登录或授权提示、北极星文件是否完整，再重试。"), {code:session.everCandidate || session.ready || session.entered ? "LAUNCH_EARLY_EXIT" : "LAUNCHER_EARLY_EXIT"});
   }

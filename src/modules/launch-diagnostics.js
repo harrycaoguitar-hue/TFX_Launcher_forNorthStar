@@ -6,9 +6,9 @@
 const {randomUUID} = require("crypto");
 const STAGES = Object.freeze(["preflight", "client", "skins", "ea", "spawn", "game", "northstar", "confirmation"]);
 const STATUSES = new Set(["pending", "active", "observed", "failed", "unconfirmed"]);
-const OUTCOMES = new Set(["launching", "confirmed", "preflight-failed", "client-failed", "skins-failed", "ea-failed", "spawn-failed", "game-closed", "northstar-not-ready", "timeout", "unknown"]);
+const OUTCOMES = new Set(["launching", "confirmed", "preflight-failed", "client-failed", "skins-failed", "ea-failed", "spawn-failed", "game-closed", "northstar-not-ready", "official-mod-not-ready", "timeout", "unknown"]);
 const ACTIONS = new Set(["retry", "settings", "client", "platform", "mods", "issue"]);
-const EVIDENCE = new Set(["EA_NOT_INSTALLED", "EA_START_FAILED", "EA_START_TIMEOUT", "EA_PROCESS_QUERY_FAILED", "GAME_ALREADY_RUNNING", "GAME_DIRECTORY_INVALID", "GAME_ASSETS_MISSING", "GAME_FILE_UNREADABLE", "PROCESS_QUERY_FAILED", "SELECTION_CHANGED", "SKIN_OPERATION_BUSY", "NORTHSTAR_NOT_READY", "NORTHSTAR_CORE_DISABLED", "NORTHSTAR_CORE_DUPLICATE", "LAUNCH_EARLY_EXIT", "LAUNCHER_EARLY_EXIT", "LAUNCH_TIMEOUT", "ENOENT", "EACCES", "UNKNOWN"]);
+const EVIDENCE = new Set(["EA_NOT_INSTALLED", "EA_START_FAILED", "EA_START_TIMEOUT", "EA_PROCESS_QUERY_FAILED", "GAME_ALREADY_RUNNING", "GAME_DIRECTORY_INVALID", "GAME_ASSETS_MISSING", "GAME_FILE_UNREADABLE", "PROCESS_QUERY_FAILED", "SELECTION_CHANGED", "SKIN_OPERATION_BUSY", "NORTHSTAR_NOT_READY", "NORTHSTAR_CORE_DISABLED", "NORTHSTAR_CORE_DUPLICATE", "CLEAN_PROXY_RECOVERY", "OFFICIAL_MOD_NOT_READY", "VANILLA_CLIENT_NOT_INSTALLED", "VANILLA_RUNTIME_OUTDATED", "LAUNCH_EARLY_EXIT", "LAUNCHER_EARLY_EXIT", "LAUNCH_TIMEOUT", "ENOENT", "EACCES", "UNKNOWN"]);
 const MAX_MS = 24 * 60 * 60 * 1000;
 function duration(value) {return Number.isFinite(value) ? Math.max(0, Math.min(MAX_MS, Math.round(value))) : null;}
 function version(value) {return typeof value === "string" && /^\d{1,5}\.\d{1,5}\.\d{1,5}(?:-(?:alpha|beta|rc)\.\d{1,5})?$/.test(value) ? value : null;}
@@ -21,6 +21,7 @@ function sanitizeReport(input) {
   }
   return {
     schema:1, id:input.id, appVersion:version(input.appVersion), gameVersion:input.gameVersion,
+    officialMods:input.gameVersion === "vanilla" && input.officialMods === true,
     region:input.gameVersion === "northstar" && ["cn", "global"].includes(input.region) ? input.region : null,
     state:["starting", "confirmed", "failed"].includes(input.state) ? input.state : "failed",
     startedAt:timestamp(input.startedAt), updatedAt:timestamp(input.updatedAt), elapsedMs:duration(input.elapsedMs),
@@ -37,8 +38,11 @@ function failureOutcome(error, phase) {
   const base = {causeKnown:false, evidenceCode:code, actions:["retry", "issue"]};
   if (["GAME_DIRECTORY_INVALID", "GAME_ASSETS_MISSING", "GAME_FILE_UNREADABLE"].includes(code)) return {...base, code:"preflight-failed", causeKnown:true, actions:["settings", "client", "issue"]};
   if (["GAME_ALREADY_RUNNING", "SELECTION_CHANGED", "SKIN_OPERATION_BUSY"].includes(code)) return {...base, code:"preflight-failed", causeKnown:true, actions:["retry", "settings"]};
+  if (code === "CLEAN_PROXY_RECOVERY") return {...base, code:"preflight-failed", causeKnown:true, actions:["settings", "retry"]};
   if (code.startsWith("EA_")) return {...base, code:"ea-failed", causeKnown:code === "EA_NOT_INSTALLED", actions:["platform", "retry", "issue"]};
   if (["NORTHSTAR_NOT_READY", "NORTHSTAR_CORE_DISABLED", "NORTHSTAR_CORE_DUPLICATE"].includes(code)) return {...base, code:"northstar-not-ready", causeKnown:code !== "NORTHSTAR_NOT_READY", actions:["client", "mods", "issue"]};
+  if (code === "OFFICIAL_MOD_NOT_READY") return {...base, code:"official-mod-not-ready", actions:["client", "mods", "issue"]};
+  if (["VANILLA_CLIENT_NOT_INSTALLED", "VANILLA_RUNTIME_OUTDATED"].includes(code)) return {...base, code:"client-failed", causeKnown:true, actions:["client", "issue"]};
   if (code === "LAUNCH_TIMEOUT") return {...base, code:"timeout", actions:["platform", "client", "issue"]};
   if (code === "LAUNCH_EARLY_EXIT") return {...base, code:"game-closed", actions:["retry", "platform", "issue"]};
   if (code === "LAUNCHER_EARLY_EXIT") return {...base, code:"spawn-failed", actions:["platform", "client", "issue"]};
@@ -51,11 +55,12 @@ class LaunchDiagnostics {
   constructor({now = Date.now, id = randomUUID, appVersion, onChange = () => {}, persist = () => {}} = {}) {
     Object.assign(this, {now, id, appVersion, onChange, persist}); this.current = null; this.started = 0; this.phase = "preflight";
   }
-  begin(gameVersion) {
+  begin(gameVersion, options = {}) {
     this.started = this.now(); this.phase = "preflight";
-    this.current = {schema:1, id:this.id(), appVersion:version(this.appVersion), gameVersion:gameVersion === "vanilla" ? "vanilla" : "northstar", region:null,
+    const officialMods = gameVersion === "vanilla" && options?.officialMods === true;
+    this.current = {schema:1, id:this.id(), appVersion:version(this.appVersion), gameVersion:gameVersion === "vanilla" ? "vanilla" : "northstar", officialMods, region:null,
       state:"starting", startedAt:new Date(this.started).toISOString(), updatedAt:new Date(this.started).toISOString(), elapsedMs:0, clientVersion:null, attempts:0,
-      stages:STAGES.filter(code => gameVersion !== "vanilla" || !["client", "northstar"].includes(code)).map(code => ({code, status:"pending", elapsedMs:null})),
+      stages:STAGES.filter(code => gameVersion !== "vanilla" || officialMods || !["client", "northstar"].includes(code)).map(code => ({code, status:"pending", elapsedMs:null})),
       outcome:{code:"launching", causeKnown:false, evidenceCode:null, actions:[]}};
     this.stage("preflight", "active"); return this.current.id;
   }
@@ -96,14 +101,15 @@ class LaunchDiagnostics {
     if (!this.current || this.current.state !== "starting") return;
     const failed = Boolean(error); this.current.state = failed ? "failed" : "confirmed";
     this.current.outcome = failed ? failureOutcome(error, this.phase) : {code:"confirmed", causeKnown:false, evidenceCode:null, actions:[]};
-    if (this.current.gameVersion === "vanilla") this.current.outcome.actions = [...new Set(this.current.outcome.actions.map(action => ["client", "mods"].includes(action) ? "settings" : action))];
+    if (["LAUNCH_EARLY_EXIT", "LAUNCHER_EARLY_EXIT"].includes(error?.code) && (this.current.gameVersion === "northstar" || this.current.officialMods)) this.current.outcome.actions.splice(1, 0, "mods");
+    if (this.current.gameVersion === "vanilla" && !this.current.officialMods) this.current.outcome.actions = [...new Set(this.current.outcome.actions.map(action => ["client", "mods"].includes(action) ? "settings" : action))];
     for (const item of this.current.stages) {
       if (item.status === "active") item.status = failed && item.code === this.phase ? "failed" : "unconfirmed";
       else if (item.status === "pending") item.status = "unconfirmed";
     }
     // Confirmation already requires stable process snapshots (and Northstar
     // core/menu log evidence). Never infer those facts merely from spawn().
-    if (!failed) for (const code of ["game", "confirmation", ...(this.current.gameVersion === "northstar" ? ["northstar"] : [])]) {
+    if (!failed) for (const code of ["game", "confirmation", ...(this.current.gameVersion === "northstar" || this.current.officialMods ? ["northstar"] : [])]) {
       const item = this.current.stages.find(value => value.code === code); if (item) {item.status = "observed"; item.elapsedMs ??= duration(this.now() - this.started);}
     }
     this.commit();

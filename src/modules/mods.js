@@ -9,6 +9,7 @@ const settings = require("./settings");
 const profileResolver = require("./northstar-region");
 const {splitArguments} = require("./launch-session");
 const stateFile = require("./mod-enabled-state");
+const serverProfiles = require("./server-mod-profiles");
 const AddedTimes = require("./mod-added-times");
 const {importLocalMod, messages: importMessages} = require("./local-mod-import");
 const log = require("./console"), getWindow = require("../win"), translate = require("../lang");
@@ -81,7 +82,8 @@ function describeChild(context, folder, owner, states, times) {
   if (manifest && text(manifest.name)) item.manifest_name = manifest.name;
   const authorFile = path.join(folder, "thunderstore_author.txt"), authorStat = regularPath(context.root, authorFile, "file");
   if (authorStat && authorStat.size <= 4096) item.author = fs.readFileSync(authorFile, "utf8");
-  item.required = stateFile.isRequired(item, context.profile) || stateFile.CORE_NAMES.some(core => path.resolve(folder).toLowerCase() === path.resolve(context.mods, core).toLowerCase());
+  const vanillaCore = name === serverProfiles.VANILLA_PLUS && path.resolve(folder).toLowerCase() === path.resolve(context.packages, "NachosChipeados-VanillaPlus-2.5.1", "mods", serverProfiles.VANILLA_PLUS_FOLDER).toLowerCase();
+  item.required = vanillaCore || stateFile.isRequired(item, context.profile) || stateFile.CORE_NAMES.some(core => path.resolve(folder).toLowerCase() === path.resolve(context.mods, core).toLowerCase());
   item.disabled = !stateFile.enabled(states, name, stateVersion);
   item.addedAt = times.get(context.gamePath, identityOf(item), owner ? owner.package_path : folder);
   return item;
@@ -171,15 +173,15 @@ function assertWritable(options={}) {
 }
 async function guardedMutation(action, options={}) {
   assertWritable(options);
-  const selected = {gamePath: settings().gamepath, arguments: settings().nsargs || "", region: settings().northstarRegion, independent: settings().independentServerMods};
+  const selected = {gamePath: settings().gamepath, arguments: settings().nsargs || "", region: serverProfiles.selectedServer(settings()), independent: settings().independentServerMods};
   const context = profileContext();
   const guard = async () => {
     const current = settings();
-    if (current.gamepath !== selected.gamePath || (current.nsargs || "") !== selected.arguments || current.northstarRegion !== selected.region || current.independentServerMods !== selected.independent || !context || profileContext()?.profile !== context.profile) throw Error("The selected game profile changed; retry your action.");
+    if (current.gamepath !== selected.gamePath || (current.nsargs || "") !== selected.arguments || serverProfiles.selectedServer(current) !== selected.region || current.independentServerMods !== selected.independent || !context || profileContext()?.profile !== context.profile) throw Error("The selected game profile changed; retry your action.");
     const snapshot = await require("./is_running").snapshot();
     if (!snapshot.ok) throw Error("Unable to verify whether the game is running. Please retry.");
     if (snapshot.processes.some(item => ["northstarlauncher.exe", "titanfall2.exe", "titanfall2-unpacked.exe"].includes(item.image))) throw Error("Please close the game before changing installed mods.");
-    if (settings().gamepath !== selected.gamePath || (settings().nsargs || "") !== selected.arguments || settings().northstarRegion !== selected.region || settings().independentServerMods !== selected.independent) throw Error("The selected game profile changed; retry your action.");
+    if (settings().gamepath !== selected.gamePath || (settings().nsargs || "") !== selected.arguments || serverProfiles.selectedServer(settings()) !== selected.region || settings().independentServerMods !== selected.independent) throw Error("The selected game profile changed; retry your action.");
   };
   return require("./dds-operation-gate").run("mod-library", async () => {await guard();mutationDepth++;try{const conf=settings();if(conf.independentServerMods)require("./server-mod-profiles").transition(conf,conf);return action(guard);}finally{mutationDepth--;}});
 }
@@ -189,7 +191,7 @@ async function guardedResponse(action) {
 manager.list = function list(options = {}) {
   const context = profileContext(options);
   let document = options.states?.format ? options.states : stateFile.parse(options.states || (context ? stateFile.checked(context.state) : null));
-  if (context && options.states === undefined && settings().independentServerMods) document = require("./server-mod-profiles").view(context.profile, profileResolver.normalize(settings().northstarRegion), document);
+  if (context && options.states === undefined && settings().independentServerMods) document = serverProfiles.view(context.profile, serverProfiles.selectedServer(settings()), document);
   const library = scanLibrary(context, document, addedTimes);
   if (!options.readOnly) {
     manager.path = context?.mods || path.join(settings().gamepath || "", "R2Northstar", "mods"); manager.modfile.file = context?.state;
@@ -246,6 +248,8 @@ function setSelection(request, invert = false) {
       if (entries.some(item => item.stateControl === false)) throw Object.assign(Error("Plugin packages do not support a mod enable switch; remove the package to uninstall them."), {code: "PLUGINS_NO_SWITCH"});
       if (selection.package && entries.some(item => byName.get(item.name).some(other => (document.format === "flat" || other.stateVersion === item.stateVersion) && other.folder_path !== item.folder_path))) throw Object.assign(Error("The game stores this mod state once for multiple packages; remove the duplicate before changing its state."), {code: "AMBIGUOUS_MOD"});
       if ((!selection.enabled || invert) && entries.some(item => item.required)) throw coreError();
+      const server = serverProfiles.selectedServer(settings());
+      if (selection.enabled && entries.some(item => server === "official" ? stateFile.CORE_NAMES.includes(item.name) : item.name === serverProfiles.VANILLA_PLUS)) throw Object.assign(Error("This core component is incompatible with the selected server. TFX manages its enabled state automatically."), {code: "CORE_REQUIRED"});
       for (const item of entries) {
         const key = JSON.stringify(document.format === "flat" ? [item.name] : [item.name, item.stateVersion]);
         const before = stateFile.enabled(document, item.name, item.stateVersion), after = invert ? !before : selection.enabled;
@@ -269,7 +273,7 @@ manager.modfile = {
     if(settings().independentServerMods)require("./server-mod-profiles").transition(settings(),settings());
     const context = profileContext(); if (!context) return failure(Error("Select an installed Northstar game folder first."));
     const original = stateFile.checked(context.state), document = stateFile.parse(original), library = scanLibrary(context, document, addedTimes);
-    for (const item of library.all) if (item.stateControl !== false) stateFile.set(document, item.name, item.stateVersion, item.required || !item.disabled);
+    for (const item of library.all) if (item.stateControl !== false) stateFile.set(document, item.name, item.stateVersion, serverProfiles.compatibleChoice(serverProfiles.selectedServer(settings()), item, item.required || !item.disabled));
     const intended = stateFile.serialize(document); if (!original || !original.equals(intended)) persistSelections(context, original, intended);
     return {ok: true, mods: scanLibrary(context, document, addedTimes)};
   },

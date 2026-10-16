@@ -28,7 +28,7 @@
   const damaged = status => status?.installState === 'damaged' || status?.state === 'needs-repair';
   const launchBusy = () => typeof launchPending !== 'undefined' && launchPending;
   const gameRunning = () => typeof is_running !== 'undefined' && is_running;
-  const preferencesBusy = () => Boolean(window.Settings?.saving);
+  const preferencesBusy = () => Boolean(window.Settings?.saving || window.OfficialClient?.busy);
   const phaseCopy = phase => ({
     checking: copy("正在检查客户端文件","Checking client files"),
     preparing: copy("正在准备客户端文件","Preparing client files"),
@@ -71,7 +71,7 @@
   function renderAction() {
     const selected = region(), status = statuses.get(selected), locked = Boolean(installing);
     if (updateButton) updateButton.hidden = !status?.installed || Boolean(status.error) || damaged(status) || locked || requests.has(selected);
-    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-mode],.disable-when-installing,.playBtn')) {
+    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-vanilla-mods],[data-mode],.disable-when-installing,.playBtn')) {
       if (locked) {
         if (!installationLocks.has(button)) installationLocks.set(button, button.disabled);
         button.disabled = true;
@@ -80,7 +80,7 @@
         installationLocks.delete(button);
       }
     }
-    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region]')) button.disabled = locked || launchBusy() || gameRunning() || externalUpdate || preferencesBusy();
+    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-vanilla-mods]')) button.disabled = locked || launchBusy() || gameRunning() || externalUpdate || preferencesBusy();
     if (launchBusy() || preferencesBusy()) { playButton.disabled = true; return; }
     playButton.setAttribute('aria-busy', String(locked || requests.has(selected)));
     playButton.dataset.clientAction = locked ? 'installing' : requests.has(selected) ? 'checking' : damaged(status) ? 'repair' : status?.installed === false ? 'install' : status?.installed === true ? 'launch' : 'retry-status';
@@ -101,7 +101,7 @@
       playButton.disabled = !gameDirectoryReady || externalUpdate;
     }
     if (externalUpdate) {
-      for (const button of document.querySelectorAll('[data-launch-region],[data-server-region]')) button.disabled = true;
+      for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-vanilla-mods]')) button.disabled = true;
       playButton.disabled = true;
     }
   }
