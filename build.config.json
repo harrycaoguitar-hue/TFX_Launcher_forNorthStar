@@ -20,7 +20,8 @@
       }
     ],
     "icon": "src/assets/icons/icon.ico",
-    "signAndEditExecutable": false
+    "signAndEditExecutable": true,
+    "signExecutable": false
   },
   "portable": {
     "artifactName": "TFX-Launcher-${version}.exe",

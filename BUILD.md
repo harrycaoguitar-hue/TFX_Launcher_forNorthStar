@@ -1,6 +1,6 @@
-# Building TFX Launcher 1.0.3
+# Building TFX Launcher 1.0.4
 
-The entry point is src/index.js. The application package and native Windows metadata use version 1.0.3. The public build configuration targets Windows x64 and keeps required archive tools and official client bundles outside ASAR.
+The entry point is src/index.js. The application package and native Windows metadata use version 1.0.4. The public build configuration targets Windows x64 and keeps required archive tools and official client bundles outside ASAR.
 
 ## Requirements
 
@@ -19,9 +19,9 @@ npm start
 npm run dist
 ```
 
-The portable application is written to dist/TFX-Launcher-1.0.3.exe. The distribution is unsigned. Signing requires the publisher's own certificate and is not configured in this source. The source archive includes package-lock.json and third-party notices. npm ci obtains the pinned dependency versions from their public registries.
+The portable application is written to dist/TFX-Launcher-1.0.4.exe. The distribution is unsigned. Signing requires the publisher's own certificate and is not configured in this source. The source archive includes package-lock.json and third-party notices. npm ci obtains the pinned dependency versions from their public registries.
 
-The development release was assembled from a verified Electron 43.1.1 runtime with native resources en-US, zh-CN, zh-TW, de and fr; native metadata and the TFX icon were applied before portable wrapping. A standard npm run dist build may retain additional Electron language resources, so compressed bytes need not be identical. No private build paths or signing credentials are required by the public build configuration.
+The build uses Electron 43.1.1 and applies the application version and TFX icon to the native Windows executable before portable wrapping. Executable resource editing is enabled; no signing certificate is configured, so the distribution remains unsigned. No private build paths or signing credentials are required by the public build configuration.
 
 ## Data and behavior
 

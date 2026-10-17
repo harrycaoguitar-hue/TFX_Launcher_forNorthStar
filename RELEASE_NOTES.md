@@ -1,22 +1,22 @@
-# TFX Launcher 1.0.4-beta.2
+# TFX Launcher 1.0.4
 
 **中文**
 
 - 原版启动新增“不带 Mod / 带 Mod”选择；带 Mod 模式使用 VanillaPlus 2.5.1 与兼容的 Northstar Global 加载组件，并保留 Steam / EA 的正版启动身份。
 - 可选分别记忆官服、中国服和全球服的 Mod 开关，默认关闭；Mod 文件、原生插件以及 DDS / VTF 皮肤仍然共用。
 - 加强启动过程诊断与失败反馈；加载 Mod 时提前退出会提供 Mod 排查入口，保留真实失败分类，不把未知原因认定为已查明冲突。
-- 五种语言同步更新。该版本为预发布；仅支持兼容的客户端 Mod，不保证所有 Mod 或组合可用于官服。
+- 五种语言同步更新。该版本为正式版；仅支持兼容的客户端 Mod，不保证所有 Mod 或组合可用于官服。
 
 **English**
 
 - Adds **Without Mods / With Mods** choices to Vanilla launching. Modded official play uses VanillaPlus 2.5.1 and a compatible Northstar Global runtime while preserving the purchased game's Steam / EA launch identity.
 - Optionally remembers Mod switches independently for Official, NorthstarCN and Northstar Global; off by default. Installed files, native plugins and DDS / VTF skins remain shared.
 - Improves launch diagnostics and failure feedback. Early exits with a Mod loader offer Mod troubleshooting while retaining the observed failure classification and an unknown cause when no cause is established.
-- Updates all five interface languages. This is a prerelease for compatible client-side Mods; compatibility of every Mod or combination is not guaranteed.
+- Updates all five interface languages. This stable release supports compatible client-side Mods; compatibility of every Mod or combination is not guaranteed.
 
-**Validation / 验证**: 899 automated tests passed; the accepted Windows x64 portable build and its source inventory were checked again for publication. Recorded live validation covers official multiplayer and Northstar menu/authentication checks, not every Mod effect or joining a match on every network. The release reuses the accepted executable without rebuilding or changing its bytes.
+**Validation / 验证**: The stable version is rebuilt from the accepted beta.2 functionality with synchronized application and sidebar versions. Automated validation and artifact checks accompany this release. Recorded live validation covers official multiplayer and Northstar menu/authentication checks, not every Mod effect or joining a match on every network. The source archive and Windows x64 portable application are rebuilt for version 1.0.4; original beta release artifacts remain available.
 
-Windows x64 portable: `TFX-Launcher-1.0.4-beta.2.exe`. Source, validation notes and SHA-256 checksums accompany this release.
+Windows x64 portable: `TFX-Launcher-1.0.4.exe`. Source, validation notes and SHA-256 checksums accompany this release.
 
 ---
 

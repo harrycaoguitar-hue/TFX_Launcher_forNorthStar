@@ -6,9 +6,9 @@
 
 TFX 将 **Northstar 全球服**与 **NorthstarCN 中国服**整合到同一份 TITANFALL 2 游戏安装中。选好服务器区域，启动对应客户端；DDS 皮肤、VTF 皮肤和北极星 Mod 都可以拖入统一入口，自动识别、检查并安装。武器库按武器整理皮肤，还能直接切回有效的历史皮肤或恢复原版。
 
-[下载 TFX 1.0.3](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.3) · [反馈问题](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [从源码构建](BUILD.md)
+[下载 TFX 1.0.4](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.4) · [反馈问题](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [从源码构建](BUILD.md)
 
-当前最新稳定版为 **1.0.3**。**[1.0.4-beta.2 预发布版](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.4-beta.2)**新增官服带 Mod 启动与三服 Mod 独立，详见[下方说明](#预览官服-mod-启动与三服独立)。界面图片仍展示正式版 1.0.3。
+当前最新稳定版为 **[1.0.4](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.4)**，包含官服带 Mod 启动与三服 Mod 独立，详见[下方说明](#官服-mod-启动与三服独立)。界面图片展示正式版 1.0.3。
 
 ![TFX 北极星启动界面，英文版](docs/images/play.webp)
 
@@ -37,7 +37,7 @@ TFX 将 **Northstar 全球服**与 **NorthstarCN 中国服**整合到同一份 T
 
 TFX 是 **Windows x64 便携式启动器**。需要已购买并安装的 TITANFALL 2、可以正常使用的 Steam / EA 环境，以及足够存放客户端、安装暂存与恢复数据的空间。启动器不包含游戏本体。
 
-1. 在 [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest) 下载并运行 `TFX-Launcher-1.0.3.exe`。
+1. 在 [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest) 下载并运行 `TFX-Launcher-1.0.4.exe`。
 2. 等待自动检测游戏；检测失败时，选择包含 `Titanfall2.exe` 的游戏根目录。不要选 `steamapps`、`common` 或 Mod 子目录。
 3. 打开**北极星**，选择**中国服**或**全球服**；如果提示未安装，先安装对应客户端。
 4. 点击启动。Steam / EA 若要求登录或确认，请在对应平台完成。
@@ -47,7 +47,7 @@ TFX 是 **Windows x64 便携式启动器**。需要已购买并安装的 TITANFA
 
 ## Northstar 与 NorthstarCN 双服启动
 
-TFX 分别记录两种客户端的实际安装状态，下载缓存不等于已经安装。1.0.3 内置的首次安装数据为 **NorthstarCN 1.17.7** 与 **Northstar 1.31.13**；联网游戏仍然需要网络连接。
+TFX 分别记录两种客户端的实际安装状态，下载缓存不等于已经安装。内置的首次安装数据为 **NorthstarCN 1.17.7** 与 **Northstar 1.31.13**；联网游戏仍然需要网络连接。
 
 两种客户端准备完成后，切换复用对应的核心文件，无需每次重新解压整包，个人 Mod 与皮肤资源继续保留。能够识别的较新本地客户端会被保留，不会直接被较旧的内置版本覆盖。启动页显示当前所选客户端的实际版本与状态。
 
@@ -59,9 +59,9 @@ TFX 分别记录两种客户端的实际安装状态，下载缓存不等于已�
 
 **原版**入口保留战役与官方多人游戏，通过正常的 Steam / EA 环境启动。
 
-### 预览：官服 Mod 启动与三服独立
+### 官服 Mod 启动与三服独立
 
-**适用于 1.0.4-beta.2 预发布版。** 在**原版**启动界面选择**不带 Mod**或**带 Mod**，交互方式与北极星的中国服 / 全球服选择一致。**不带 Mod**通过正常的 Steam / EA 环境启动；**带 Mod**加载兼容的客户端 Mod，并保留官方多人游戏，不会因此连接到北极星社区服。
+**已包含于正式版 1.0.4。** 在**原版**启动界面选择**不带 Mod**或**带 Mod**，交互方式与北极星的中国服 / 全球服选择一致。**不带 Mod**通过正常的 Steam / EA 环境启动；**带 Mod**加载兼容的客户端 Mod，并保留官方多人游戏，不会因此连接到北极星社区服。
 
 第一次使用**带 Mod**前，需要通过页面的安装按钮准备 **VanillaPlus 2.5.1** 与 **Northstar 全球服加载组件 1.29.0 或更新版本**。组件缺失、损坏或过旧时会提示安装或修复，单纯查看状态不会自动下载，也不会启动游戏。安装流程校验内置 VanillaPlus 文件，准备全球服加载组件并展示进度；安装与修复期间需保持游戏关闭。TFX 会根据启动模式启用对应的必要组件，切回北极星时恢复社区服菜单。
 
@@ -69,7 +69,7 @@ TFX 分别记录两种客户端的实际安装状态，下载缓存不等于已�
 
 VanillaPlus 适用于**与官服兼容的客户端 Mod**，并不代表所有北极星 Mod 都能在官服使用。依赖自定义服务器、修改服务端玩法或要求北极星专用服务的 Mod 可能无法正常工作，请先核对各 Mod 的兼容范围。框架作者、来源与许可见[第三方说明](THIRD_PARTY_NOTICES.md)。
 
-预览版的**偏好设置 → 三服模组独立**取代双服设置，**默认关闭**。开启后，**官服、NorthstarCN 中国服、Northstar 全球服**分别记住 Mod 开关。首次开启时，三边以当前选择为基础；新添加的 Mod 只在当前区域默认启用，另外两边默认关闭。独立范围仅为 **Mod 的启用状态**，安装包文件、原生插件、DDS 与 VTF 皮肤继续共享，不会生成三份游戏，也不隔离插件代码。关闭时继续共用个人 Mod 开关，必要兼容组件仍随启动模式自动调整。
+1.0.4 的**偏好设置 → 三服模组独立**取代双服设置，**默认关闭**。开启后，**官服、NorthstarCN 中国服、Northstar 全球服**分别记住 Mod 开关。首次开启时，三边以当前选择为基础；新添加的 Mod 只在当前区域默认启用，另外两边默认关闭。独立范围仅为 **Mod 的启用状态**，安装包文件、原生插件、DDS 与 VTF 皮肤继续共享，不会生成三份游戏，也不隔离插件代码。关闭时继续共用个人 Mod 开关，必要兼容组件仍随启动模式自动调整。
 
 选择**不带 Mod**时，TFX 会临时阻止已识别的北极星代理自动加载，并中和 `run_northstar.txt` 标记，在启动交接完成或启动失败后恢复原文件。中断恢复记录用于保留原始状态；发现其他程序修改时不会强行覆盖。该选择控制通过加载器运行的 Mod，不会卸载共享的 DDS / VTF 皮肤。Steam / EA 中另外配置的启动参数也应与所选模式保持一致。
 
