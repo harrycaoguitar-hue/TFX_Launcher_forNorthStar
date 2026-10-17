@@ -29,6 +29,7 @@
   "CLEAN_LAUNCH_RECOVERY": "cleanRecovery"
 };
   const exact = {
+  "无法读取纯净启动组件校验清单，请修复客户端资源后重试。": "cleanRecovery",
   "官服 Mod 配置目录无效。": "notReady",
   "VanillaPlus 未启用，官服 Mod 模式没有加载。请退出游戏后重新安装官服 Mod 组件。": "notReady",
   "官服 Mod 模式检测到北极星核心 Mod 仍在运行，请退出游戏后重试。": "notReady",

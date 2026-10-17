@@ -229,6 +229,8 @@ async function launch(gameVersion) {
       // Never start a game against an interrupted transaction between them.
       diagnostics.stage("skins", "active");
       await require("./skin-switch").getActive()?.assertReady(plan.root);
+      diagnostics.stage("skins", "observed");
+      diagnostics.stage("preflight", "active");
       clientPreparation = true;
       const selectionGuard=()=>{
         const current=settings();
@@ -243,6 +245,7 @@ async function launch(gameVersion) {
       const markerManager = require("./official-launch").createCleanMarker();
       await markerManager.recover(plan.root,{guard:compatibilityGuard});
       await require("./clean-loader-proxy").recover(plan.root,{guard:compatibilityGuard});
+      diagnostics.stage("preflight", "observed");
       if (gameVersion === "northstar") {
         diagnostics.stage("client", "active");
         diagnose(record, {clientPreparation: "checking", region: network.normalize(conf.northstarRegion)});

@@ -17,12 +17,23 @@ function bundledProxies() {
     return manifest.files.filter(file => file.path.toLowerCase() === PROXY).map(file => ({size: file.size, sha256: file.sha256}));
   });
 }
-function createManager({trustedProxies = bundledProxies(), trustedProxyProvider} = {}) {
+function createManager({trustedProxies, trustedProxyProvider} = {}) {
+  // Ordinary launches without recovery state do not depend on client bundles.
+  let trusted = null;
+  function trustedSet() {
+    if (trusted) return trusted;
+    if (trustedProxies === undefined) {
+      try { trustedProxies = bundledProxies(); }
+      catch (error) { throw fail("无法读取纯净启动组件校验清单，请修复客户端资源后重试。" + error.message); }
+    }
   if (!Array.isArray(trustedProxies) || !trustedProxies.length || trustedProxies.some(value => !value || !Number.isSafeInteger(value.size) || value.size < 1 || value.size > MAX_PROXY_BYTES || !/^[a-f0-9]{64}$/.test(value.sha256))) throw fail("纯净启动组件校验清单无效。");
-  const trusted = new Set(trustedProxies.map(value => value.size + ":" + value.sha256)), busy = new Set();
+      trusted = new Set(trustedProxies.map(value => value.size + ":" + value.sha256));
+    return trusted;
+  }
+  const busy = new Set();
   async function isTrusted(ctx, fingerprint) {
     if (!fingerprint || !Number.isSafeInteger(fingerprint.size) || fingerprint.size < 1 || fingerprint.size > MAX_PROXY_BYTES || !/^[a-f0-9]{64}$/.test(fingerprint.sha256)) return false;
-    if (trusted.has(fingerprint.size + ":" + fingerprint.sha256)) return true;
+    if (trustedSet().has(fingerprint.size + ":" + fingerprint.sha256)) return true;
     if (!trustedProxyProvider) return false;
     // Revalidate a private snapshot or downloaded release for each operation;
     // neither a live DLL nor the recovery journal can authorize its own hash.
